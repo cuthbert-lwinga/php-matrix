@@ -1,0 +1,21 @@
+[X] add
+[X] subtract
+[X] dot
+[X] transpose
+[X] addScalar
+[X] subtractScalar
+[X] display
+[X] getRows
+[X] getCols
+[X] division
+[X] Element-wise Operations (addition, subtraction, multiplication, division)
+[X] shape
+[X] argmax
+[X] clip
+[X] log
+[X] sqrt
+[X] exp
+[X] sum
+[X] Matrix Inversion
+[X] Matrix Determinant
+[X] Eigenvalues and Eigenvectors
