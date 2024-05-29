@@ -1,15 +1,25 @@
 EXTENSION_NAME=matrix_extension
+
 PHP_CONFIG=$(shell which php-config)
-PHPCPP_DIR=/usr/local/include
+
+PHPCPP_DIR=$(shell $(PHP_CONFIG) --includes | sed 's/-I/-I\/usr\/include\/phpcpp /g')
+
 PHPCPP_LIB=/usr/local/lib
+
 PHP_EXTENSION_DIR=$(shell $(PHP_CONFIG) --extension-dir)
+
 EIGEN_DIR=./eigen
 
-CXX=g++
-CXXFLAGS=-O3 -Wall -c -std=c++14 -fpic `$(PHP_CONFIG) --includes` -I$(PHPCPP_DIR) -I$(EIGEN_DIR)
-LDFLAGS=-shared -L$(PHPCPP_LIB) -lphpcpp
+THREAD_MANAGER_DIR=./ThreadManager
 
-SRC=matrix.cpp matrixwrapper.cpp extension.cpp
+CXX=g++
+
+CXXFLAGS=-O3 -Wall -c -g -std=c++14 -fpic `$(PHP_CONFIG) --includes` -I$(PHPCPP_DIR) -I$(EIGEN_DIR) -I$(THREAD_MANAGER_DIR)
+
+LDFLAGS=-shared -L$(PHPCPP_LIB) -lphpcpp -lpthread
+
+SRC=matrix.cpp matrixwrapper.cpp extension.cpp $(THREAD_MANAGER_DIR)/ThreadManager.cpp
+
 OBJ=$(SRC:.cpp=.o)
 
 all: $(EXTENSION_NAME).so
@@ -24,6 +34,9 @@ matrixwrapper.o: matrixwrapper.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 extension.o: extension.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
+ThreadManager.o: $(THREAD_MANAGER_DIR)/ThreadManager.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 install: $(EXTENSION_NAME).so

@@ -1,69 +1,61 @@
 #include "matrixwrapper.h"
 #include <iostream>
 #include <thread>
-
-void convertPhpArrayToVector(const Php::Value &phpArray, std::vector<std::vector<double>> &outputVector);
+#include <vector>
+#include <map> 
+#include <algorithm>
+#include <cmath>
+// ThreadManager MatrixWrapper::threadManager(4);
+int calculateThreadsBasedOnMatrixSize__(int rows, int cols, double scalingFactor, int maxThreads);
 
 void MatrixWrapper::__construct(Php::Parameters &params)
 {
-    if (params.size() == 1 && params[0].isArray()) {
-        Php::Array inputData = params[0];
-        int newRows = inputData.size();
-        int newCols = newRows > 0 ? Php::count(inputData[0]).numericValue() : 0;
 
-        for (int i = 0; i < newRows; ++i) {
-            if (Php::count(inputData[i]).numericValue() != newCols) {
-                throw Php::Exception("All rows must have the same number of columns");
+   if (params.size() == 1 && params[0].isArray()) {
+        Php::Value inputData = params[0];
+        std::vector<std::vector<double>> data;
+
+        for (auto &row : inputData) {
+            std::vector<double> rowData;
+            for (auto &element : row.second) {
+                rowData.push_back(element.second.floatValue());
             }
+            data.push_back(rowData);
         }
 
-        matrix = new Matrix(newRows, newCols);
+        int rows = data.size();
+        int cols = rows > 0 ? data[0].size() : 0;
 
-        for (int i = 0; i < newRows; ++i) {
-            Php::Value row = inputData[i];
-            if (row.isArray()) {
-                Php::Array rowArray = row;
-                for (int j = 0; j < newCols; ++j) {
-                    (*matrix)(i, j) = rowArray[j];
-                }
-            } else {
-                throw Php::Exception("Each row must be an array");
-            }
+        // Initialize the Matrix object with the input data using parallelization
+        matrix = new Matrix(rows, cols);
+
+
+        // Initialize the matrix in parallel using Eigen's internal parallelization
+        #pragma omp parallel for
+        for (int i = 0; i < rows; ++i) {
+            matrix->data.row(i) = Eigen::Map<const Eigen::RowVectorXd>(&data[i][0], cols);
         }
     } else {
-        throw Php::Exception("Invalid parameters for MatrixWrapper constructor");
+        
+        matrix = new Matrix(1, 1);
+
+
+        //throw Php::Exception("Invalid parameters for MatrixWrapper constructor");
     }
+
+
+
 }
-
-// void MatrixWrapper::__construct(Php::Parameters &params)
-// {
-//     if (params.size() == 1 && params[0].isArray()) {
-//         std::vector<std::vector<double>> inputData;
-
-//         convertPhpArrayToVector(params[0], inputData);
-
-//         int newRows = inputData.size();
-//         int newCols = newRows > 0 ? inputData[0].size() : 0;
-
-//         // matrix = new Matrix(inputData);
-//         matrix = new Matrix(inputData);
-//     } else {
-//         throw Php::Exception("Invalid parameters for MatrixWrapper constructor");
-//     }
-// }
-
 
 
 Php::Value MatrixWrapper::add(Php::Parameters &params)
 {
     if (params.size() == 1 && params[0].isObject() && params[0].instanceOf("MatrixWrapper")) {
         MatrixWrapper *other = (MatrixWrapper *)params[0].implementation();
-        
         Matrix result = matrix->add(*(other->matrix));
-        MatrixWrapper *resultWrapper = new MatrixWrapper(std::move(result));
-        auto phpObject = Php::Object("MatrixWrapper", resultWrapper);
-        
+        auto phpObject = Php::Object("MatrixWrapper", new MatrixWrapper(std::move(result)));
         return phpObject;
+
     } else if (params.size() == 1) {
         // Scalar addition
         double scalar = params[0];
@@ -75,23 +67,26 @@ Php::Value MatrixWrapper::add(Php::Parameters &params)
 }
 
 
-Php::Value MatrixWrapper::div(Php::Parameters& params) {
-    if (params[0].isObject()) {
-        MatrixWrapper* other = (MatrixWrapper*)params[0].implementation();
+Php::Value MatrixWrapper::div(Php::Parameters &params)
+{
+    if (params.size() == 1 && params[0].isObject() && params[0].instanceOf("MatrixWrapper")) {
+        
+        MatrixWrapper *other = (MatrixWrapper *)params[0].implementation();
         Matrix result = (*matrix) / (*(other->matrix));
-        MatrixWrapper* resultWrapper = new MatrixWrapper();
-        resultWrapper->matrix = new Matrix(result);
-        return Php::Object("MatrixWrapper", resultWrapper);
-    } else if (params[0].isNumeric()) {
-        double scalar = params[0].numericValue();
+        auto phpObject = Php::Object("MatrixWrapper", new MatrixWrapper(std::move(result)));
+        return phpObject;
+
+    } else if (params.size() == 1) {
+        // Scalar addition
+        double scalar = params[0];
         Matrix result = (*matrix) / scalar;
-        MatrixWrapper* resultWrapper = new MatrixWrapper();
-        resultWrapper->matrix = new Matrix(result);
-        return Php::Object("MatrixWrapper", resultWrapper);
-    } else {
-        throw Php::Exception("Invalid parameter type for division");
+
+        return Php::Object("MatrixWrapper", new MatrixWrapper(std::move(result)));
     }
+
+    throw Php::Exception("Invalid parameters for add method");
 }
+
 
 Php::Value MatrixWrapper::log()
 {
@@ -161,9 +156,9 @@ Php::Value MatrixWrapper::dot(Php::Parameters &params)
 {
 
     if (params[0].isObject()) {
-    MatrixWrapper *other = (MatrixWrapper *)params[0].implementation();
-    Matrix result = matrix->dot(*(other->matrix));
-    return Php::Object("MatrixWrapper", new MatrixWrapper(std::move(result)));
+        MatrixWrapper *other = (MatrixWrapper *)params[0].implementation();
+        Matrix result = matrix->dot(*(other->matrix));
+        return Php::Object("MatrixWrapper", new MatrixWrapper(std::move(result)));
     }else if (params[0].isNumeric()) {
         double scalar = params[0].numericValue();
         Matrix result = (*matrix) * scalar;
@@ -230,16 +225,8 @@ Php::Value MatrixWrapper::clip(Php::Parameters &params) {
     double max_val = params[1].numericValue();
     Matrix result = matrix->clip(min_val, max_val);
     
-    // Convert Matrix to Php::Array to return to PHP
-    Php::Array phpResult;
-    for (int i = 0; i < result.getRows(); ++i) {
-        Php::Array row;
-        for (int j = 0; j < result.getCols(); ++j) {
-            row[j] = result(i, j);
-        }
-        phpResult[i] = row;
-    }
-    return phpResult;
+    auto phpObject = Php::Object("MatrixWrapper", new MatrixWrapper(std::move(result)));
+    return phpObject;
 }
 
 
@@ -255,30 +242,92 @@ Php::Value MatrixWrapper::shape(){
     return array;
 }
 
+
+Php::Value MatrixWrapper::random(Php::Parameters &params) {
+    int rows = params[0].numericValue();
+    int cols = params[1].numericValue();
+    double min = params.size() > 2 ? params[2].floatValue() : 0.0;
+    double max = params.size() > 3 ? params[3].floatValue() : 1.0;
+
+    Matrix result = matrix->random(rows, cols, min, max);
+
+    matrix = new Matrix(std::move(result));
+
+    auto phpObject = Php::Object("MatrixWrapper", new MatrixWrapper(std::move(result)));
+    return phpObject;
+}
+
+
 void MatrixWrapper::display() const
 {
     matrix->display();
 }
 
-void convertPhpArrayToVector(const Php::Value &phpArray, std::vector<std::vector<double>> &outputVector) {
-    int newRows = phpArray.size();
-    int newCols = newRows > 0 ? Php::count(phpArray[0]).numericValue() : 0;
 
-    // Resize the output vector
-    outputVector.resize(newRows, std::vector<double>(newCols));
+Php::Value MatrixWrapper::offsetGet(Php::Parameters &params)
+{
+    int row = params[0].numericValue();
+    if (params.size() == 2) {
+        int col = params[1].numericValue();
+        return (*matrix)(row, col);
+    }
+    // Return a row as an array
+    std::vector<double> row_data;
+    for (int col = 0; col < matrix->getCols(); ++col) {
+        row_data.push_back((*matrix)(row, col));
+    }
+    return row_data;
+}
 
-    // Initialize the output vector in a single thread
-    for (int i = 0; i < newRows; ++i) {
-        Php::Value row = phpArray[i];
-        if (row.isArray()) {
-            Php::Array rowArray = row;
-            for (int j = 0; j < newCols; ++j) {
-                outputVector[i][j] = rowArray[j];
-            }
-        } else {
-            throw Php::Exception("Each row must be an array");
-        }
+void MatrixWrapper::offsetSet(Php::Parameters &params) {
+    if (params.size() != 2 || !params[0].isNumeric() || !params[1].isArray()) {
+        throw Php::Exception("Invalid argument(s) for offsetSet");
     }
 
+    int index = params[0].numericValue();
 
+    if (index >= matrix->getRows() || index < 0) {
+        throw Php::Exception("Index out of bounds");
+    }
+
+    Php::Array phpArray = params[1];
+
+    if (phpArray.size() != matrix->getCols()) {
+        throw Php::Exception("Array size does not match matrix column count");
+    }
+
+    Eigen::VectorXd vec(matrix->getCols());
+    for (int i = 0; i < phpArray.size(); ++i) {
+        vec(i) = phpArray[i];
+    }
+
+    matrix->data.row(index) = vec;
 }
+
+// Helper functions
+
+// Function to calculate a safe number of threads for context switching based on matrix size
+int calculateThreadsBasedOnMatrixSize__(int rows, int cols, double scalingFactor = 1.0, int maxThreads = 2500) {
+    // Calculate the total number of elements in the matrix
+    int totalElements = rows * cols;
+
+    // Apply logarithm base 2 transformation
+    double logElements = std::log2(static_cast<double>(totalElements));
+
+    // Calculate the number of threads
+    int numThreads = static_cast<int>(logElements * scalingFactor);
+
+    // Get the number of hardware threads
+    int hardwareThreads = std::thread::hardware_concurrency();
+    if (hardwareThreads == 0) {
+        // If hardware_concurrency() returns 0, assume a default value of 4
+        hardwareThreads = 4;
+    }
+
+    // Ensure the number of threads is at least the number of hardware threads
+    numThreads = std::max(numThreads, hardwareThreads);
+
+    // Cap the number of threads to a maximum limit
+    return std::min(numThreads, maxThreads);
+}
+

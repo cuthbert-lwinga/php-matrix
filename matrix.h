@@ -5,13 +5,21 @@
 #include <vector>
 
 class Matrix {
-private:
-    Eigen::MatrixXd data;
 
 public:
+    Eigen::MatrixXd data;
+    static double threadScalingFactor;
+    int threads = 10;
+
     Matrix(int rows, int cols, double value = 0.0);
     Matrix(const std::vector<std::vector<double>> &inputData);
     Matrix(const Eigen::MatrixXd& other);
+
+
+    // Static method to set the thread scaling factor
+    static void setThreadScalingFactor(double factor) {
+        threadScalingFactor = factor;
+    }
     // Getters
 
     int getRows() const { return data.rows(); }
@@ -36,6 +44,8 @@ public:
     std::vector<int> argmax(int axis = 0) const;
     Matrix clip(double min_val, double max_val) const;
     Matrix transpose() const; 
+    Matrix random(int rows, int cols, double min = 0.0, double max = 1.0);
+
 
     // Operator overloads for +, -, *
     double& operator()(int row, int col) { return data(row, col); }
@@ -45,16 +55,11 @@ public:
         return add(other);
     }
 
-    Matrix operator-(const Matrix &other) const {
-        return subtract(other);
-    }
+    Matrix operator-(const Matrix &other) const ;
+    Matrix operator-(double scalar) const;
 
-    Matrix operator*(const Matrix &other) const {
-        return dot(other);
-    }
-
+    Matrix operator*(const Matrix &other) const;
     Matrix operator*(double scalar) const;
-
     // Inside the Matrix class definition
     Matrix operator/(const Matrix& other) const;
     Matrix operator/(double scalar) const;
@@ -62,5 +67,6 @@ public:
 
     void display() const;
 };
+
 
 #endif // MATRIX_H

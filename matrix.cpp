@@ -5,16 +5,36 @@
 #include <vector>
 #include <cmath> 
 #include <functional>
+#include "ThreadManager.h"
+#include <random>
+
+double Matrix::threadScalingFactor = 1.0;
+
+int calculateThreadsBasedOnMatrixSize(int rows, int cols, double scalingFactor, int maxThreads);
+
 
 Matrix::Matrix(int rows, int cols, double value) : data(rows, cols) {
+
+
+    threads = calculateThreadsBasedOnMatrixSize(rows,cols, Matrix::threadScalingFactor,2500);
+
+    Eigen::setNbThreads(threads);
+
     data.setConstant(value);
 }
 
-Matrix::Matrix(const Eigen::MatrixXd& other) : data(other) {}
+Matrix::Matrix(const Eigen::MatrixXd& other) : data(other) {
+     threads = calculateThreadsBasedOnMatrixSize(other.rows(),other.cols(), Matrix::threadScalingFactor,2500);
+
+    Eigen::setNbThreads(threads);
+
+}
+
 
 Matrix::Matrix(const std::vector<std::vector<double>>& inputData) {
     int rows = inputData.size();
     int cols = rows > 0 ? inputData[0].size() : 0;
+
     data.resize(rows, cols);
 
     // Check if all rows have the same number of columns
@@ -24,41 +44,23 @@ Matrix::Matrix(const std::vector<std::vector<double>>& inputData) {
         }
     }
 
-    // Log the number of rows and columns
-    std::cout << "Initializing matrix with " << rows << " rows and " << cols << " columns using multi-threading." << std::endl;
-
-    // Determine the number of threads
-    int numThreads = std::min(20, static_cast<int>(std::thread::hardware_concurrency()));
-    int rowsPerThread = rows / numThreads;
+    // Set the number of threads based on hardware concurrency
+    // Eigen::setNbThreads(std::thread::hardware_concurrency());
 
     // Define a lambda function to initialize a range of elements
-    auto initRange = [&](int startRow, int endRow) {
-        for (int i = startRow; i < endRow; ++i) {
-            for (int j = 0; j < cols; ++j) {
-                data(i, j) = inputData[i][j];
-            }
+    auto initRange = [&](int start, int end) {
+        for (int i = start; i < end; ++i) {
+            data.row(i) = Eigen::Map<const Eigen::RowVectorXd>(&inputData[i][0], cols);
         }
-        // Debug: Log each thread's range
-        std::cout << "Thread completed rows " << startRow << " to " << endRow << std::endl;
     };
 
-    // Create and run threads
-    std::vector<std::thread> threads;
-    for (int i = 0; i < numThreads; ++i) {
-        int startRow = i * rowsPerThread;
-        int endRow = (i == numThreads - 1) ? rows : (i + 1) * rowsPerThread;
-        threads.emplace_back(initRange, startRow, endRow);
+    // Initialize the matrix in parallel using Eigen's internal parallelization
+    //#pragma omp parallel for
+    for (int i = 0; i < rows; ++i) {
+        data.row(i) = Eigen::Map<const Eigen::RowVectorXd>(&inputData[i][0], cols);
     }
-
-    // Wait for all threads to finish
-    for (auto& thread : threads) {
-        if (thread.joinable()) {
-            thread.join();
-        }
-    }
-
-    std::cout << "Matrix initialization complete." << std::endl;
 }
+
 
 
 void addRange(const Eigen::MatrixXd& A, const Eigen::MatrixXd& B, Eigen::MatrixXd& C, int startRow, int endRow) {
@@ -75,7 +77,7 @@ Matrix Matrix::add(const Matrix& other) const {
     }
 
     // Enable Eigen's multi-threading
-    Eigen::setNbThreads(std::thread::hardware_concurrency());
+    // Eigen::setNbThreads(std::thread::hardware_concurrency());
 
     Matrix result(data.rows(), data.cols());
     result.data = data + other.data;
@@ -87,12 +89,14 @@ Matrix Matrix::subtract(const Matrix& other) const {
         throw std::invalid_argument("Matrix dimensions must match for subtraction");
     }
 
-    // Enable Eigen's multi-threading
-    Eigen::setNbThreads(std::thread::hardware_concurrency());
 
-    Matrix result(data.rows(), data.cols());
-    result.data = data - other.data;
-    return result;
+    // Matrix result(data.rows(), data.cols());
+    // result.data = data - other.data;
+    // return result;
+
+
+    return Matrix(data - other.data);
+
 }
 
 
@@ -164,17 +168,22 @@ std::pair<Matrix, Matrix> Matrix::eigen() const {
 }
 
 
-Matrix Matrix::operator*(double scalar) const {
-    Matrix result(data.rows(), data.cols());
-    result.data = data * scalar;
-    return result;
+Matrix Matrix::operator-(const Matrix& other) const {
+    if (data.rows() != other.data.rows() || data.cols() != other.data.cols()) {
+        throw std::invalid_argument("Matrix dimensions must match for subtraction");
+    }
+
+    return Matrix(data - other.data);
 }
 
 
+Matrix Matrix::operator-(double scalar) const {
+    
+    return Matrix(data.array() - scalar);
+}
+
 Matrix Matrix::transpose() const {
-    Matrix result(data.cols(), data.rows());
-    result.data = data.transpose();
-    return result;
+    return Matrix(data.transpose());
 }
 
 
@@ -182,32 +191,71 @@ void dotProductRange(const Eigen::MatrixXd& A, const Eigen::MatrixXd& B, Eigen::
     C.block(startRow, 0, endRow - startRow, B.cols()) = A.block(startRow, 0, endRow - startRow, A.cols()) * B;
 }
 
+
+void dotProductRange(const Eigen::Ref<const Eigen::MatrixXd>& data,
+                                const Eigen::Ref<const Eigen::MatrixXd>& otherData,
+                                Eigen::Ref<Eigen::MatrixXd> resultData,
+                                int startRow, int endRow) {
+        resultData.block(startRow, 0, endRow - startRow, resultData.cols()) =
+            data.block(startRow, 0, endRow - startRow, data.cols()) * otherData;
+    }
+
+
 Matrix Matrix::dot(const Matrix& other) const {
     if (data.cols() != other.data.rows()) {
         throw std::invalid_argument("Matrix dimensions must be compatible for dot product");
     }
 
     Matrix result(data.rows(), other.data.cols());
-    int numThreads = std::min(20, static_cast<int>(std::thread::hardware_concurrency())); // Use at most 20 threads or the number of available hardware threads
+    int numThreads = threads;
     int rowsPerThread = data.rows() / numThreads;
+
+    ThreadManager threadManager(threads);
 
     auto dataRef = std::cref(data);
     auto otherDataRef = std::cref(other.data);
     auto resultDataRef = std::ref(result.data);
 
-    std::vector<std::thread> threads;
     for (int i = 0; i < numThreads; ++i) {
         int startRow = i * rowsPerThread;
         int endRow = (i == numThreads - 1) ? data.rows() : (i + 1) * rowsPerThread;
-        threads.push_back(std::thread(dotProductRange, dataRef, otherDataRef, resultDataRef, startRow, endRow));
+
+        threadManager.submitTask([startRow, endRow, dataRef, otherDataRef, resultDataRef] {
+            dotProductRange(dataRef, otherDataRef, resultDataRef, startRow, endRow);
+        });
     }
 
-    for (auto& t : threads) {
-        t.join();
-    }
+    threadManager.waitForCompletion();
 
     return result;
 }
+
+// Matrix Matrix::dot(const Matrix& other) const {
+//     if (data.cols() != other.data.rows()) {
+//         throw std::invalid_argument("Matrix dimensions must be compatible for dot product");
+//     }
+
+//     Matrix result(data.rows(), other.data.cols());
+//     int numThreads = threads;
+//     int rowsPerThread = data.rows() / numThreads;
+
+//     auto dataRef = std::cref(data);
+//     auto otherDataRef = std::cref(other.data);
+//     auto resultDataRef = std::ref(result.data);
+
+//     std::vector<std::thread> threads;
+//     for (int i = 0; i < numThreads; ++i) {
+//         int startRow = i * rowsPerThread;
+//         int endRow = (i == numThreads - 1) ? data.rows() : (i + 1) * rowsPerThread;
+//         threads.push_back(std::thread(dotProductRange, dataRef, otherDataRef, resultDataRef, startRow, endRow));
+//     }
+
+//     for (auto& t : threads) {
+//         t.join();
+//     }
+
+//     return result;
+// }
 
 Matrix Matrix::addScalar(const double other) const {
     Matrix result(data.rows(), data.cols());
@@ -229,69 +277,33 @@ std::vector<int> Matrix::argmax(int axis) const {
     if (axis == 0) {
         // Max along columns
         indices.resize(data.cols());
-
-        auto find_max_in_col = [&](int start, int end) {
-            for (int j = start; j < end; ++j) {
-                int maxIndex = 0;
-                for (int i = 1; i < data.rows(); ++i) {
-                    if (data(i, j) > data(maxIndex, j)) {
-                        maxIndex = i;
-                    }
+        // Eigen::setNbThreads(this->threads);
+        
+        #pragma omp parallel for num_threads(this->threads)
+        for (int j = 0; j < data.cols(); ++j) {
+            int maxIndex = 0;
+            for (int i = 1; i < data.rows(); ++i) {
+                if (data(i, j) > data(maxIndex, j)) {
+                    maxIndex = i;
                 }
-                indices[j] = maxIndex;
             }
-        };
-
-        int num_threads = std::thread::hardware_concurrency();
-        std::vector<std::thread> threads(num_threads);
-
-        int cols_per_thread = data.cols() / num_threads;
-        int remaining_cols = data.cols() % num_threads;
-
-        int start = 0;
-        for (int i = 0; i < num_threads; ++i) {
-            int end = start + cols_per_thread + (remaining_cols > 0 ? 1 : 0);
-            if (remaining_cols > 0) remaining_cols--;
-            threads[i] = std::thread(find_max_in_col, start, end);
-            start = end;
-        }
-
-        for (auto& th : threads) {
-            th.join();
+            indices[j] = maxIndex;
         }
 
     } else if (axis == 1) {
         // Max along rows
         indices.resize(data.rows());
-
-        auto find_max_in_row = [&](int start, int end) {
-            for (int i = start; i < end; ++i) {
-                int maxIndex = 0;
-                for (int j = 1; j < data.cols(); ++j) {
-                    if (data(i, j) > data(i, maxIndex)) {
-                        maxIndex = j;
-                    }
+        Eigen::setNbThreads(this->threads);
+        
+        #pragma omp parallel for num_threads(this->threads)
+        for (int i = 0; i < data.rows(); ++i) {
+            int maxIndex = 0;
+            for (int j = 1; j < data.cols(); ++j) {
+                if (data(i, j) > data(i, maxIndex)) {
+                    maxIndex = j;
                 }
-                indices[i] = maxIndex;
             }
-        };
-
-        int num_threads = std::thread::hardware_concurrency();
-        std::vector<std::thread> threads(num_threads);
-
-        int rows_per_thread = data.rows() / num_threads;
-        int remaining_rows = data.rows() % num_threads;
-
-        int start = 0;
-        for (int i = 0; i < num_threads; ++i) {
-            int end = start + rows_per_thread + (remaining_rows > 0 ? 1 : 0);
-            if (remaining_rows > 0) remaining_rows--;
-            threads[i] = std::thread(find_max_in_row, start, end);
-            start = end;
-        }
-
-        for (auto& th : threads) {
-            th.join();
+            indices[i] = maxIndex;
         }
 
     } else {
@@ -315,76 +327,78 @@ Matrix Matrix::operator/(const Matrix& other) const {
     if (data.rows() != other.getRows() || data.cols() != other.getCols()) {
         throw std::invalid_argument("Matrices must have the same dimensions for division.");
     }
-    Matrix result(data.rows(), data.cols());
-
-    auto divide_row = [&](int start, int end) {
-        for (int i = start; i < end; ++i) {
-            for (int j = 0; j < data.cols(); ++j) {
-                if (other(i, j) == 0) {
-                    throw std::invalid_argument("Division by zero encountered in matrix division.");
-                }
-                result(i, j) = data(i, j) / other(i, j);
-            }
-        }
-    };
-
-    int num_threads = std::thread::hardware_concurrency();
-    std::vector<std::thread> threads(num_threads);
-
-    int rows_per_thread = data.rows() / num_threads;
-    int remaining_rows = data.rows() % num_threads;
-
-    int start = 0;
-    for (int i = 0; i < num_threads; ++i) {
-        int end = start + rows_per_thread + (remaining_rows > 0 ? 1 : 0);
-        if (remaining_rows > 0) remaining_rows--;
-        threads[i] = std::thread(divide_row, start, end);
-        start = end;
-    }
-
-    for (auto& th : threads) {
-        th.join();
-    }
-
-    return result;
+    
+    return Matrix(data.array() / other.data.array());
 }
 
 Matrix Matrix::operator/(double scalar) const {
     if (scalar == 0) {
         throw std::invalid_argument("Division by zero encountered in scalar division.");
     }
-    Matrix result(data.rows(), data.cols());
 
-    auto divide_row = [&](int start, int end) {
-        for (int i = start; i < end; ++i) {
-            for (int j = 0; j < data.cols(); ++j) {
-                result(i, j) = data(i, j) / scalar;
-            }
-        }
-    };
+    return Matrix(data.array() + scalar);
 
-    int num_threads = std::thread::hardware_concurrency();
-    std::vector<std::thread> threads(num_threads);
+}
 
-    int rows_per_thread = data.rows() / num_threads;
-    int remaining_rows = data.rows() % num_threads;
 
-    int start = 0;
-    for (int i = 0; i < num_threads; ++i) {
-        int end = start + rows_per_thread + (remaining_rows > 0 ? 1 : 0);
-        if (remaining_rows > 0) remaining_rows--;
-        threads[i] = std::thread(divide_row, start, end);
-        start = end;
+Matrix Matrix::operator*(const Matrix& other) const {
+    if (data.rows() != other.getRows() || data.cols() != other.getCols()) {
+        throw std::invalid_argument("Matrices must have the same dimensions for division.");
+    }
+    
+    return Matrix(data.array() * other.data.array());
+}
+
+Matrix Matrix::operator*(double scalar) const {
+    if (scalar == 0) {
+        throw std::invalid_argument("Division by zero encountered in scalar division.");
     }
 
-    for (auto& th : threads) {
-        th.join();
-    }
+    return Matrix(data.array() * scalar);
 
-    return result;
+}
+
+
+Matrix Matrix::random(int rows, int cols, double min, double max) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(min, max);
+
+    Eigen::MatrixXd matrix = Eigen::MatrixXd::NullaryExpr(rows, cols, [&]() { return dis(gen); });
+
+    return Matrix(matrix);
 }
 
 
 void Matrix::display() const {
     std::cout << data << std::endl;
+}
+
+
+
+// Helper functions 
+
+// Function to calculate a safe number of threads for context switching based on matrix size
+int calculateThreadsBasedOnMatrixSize(int rows, int cols, double scalingFactor = 1.0, int maxThreads = 2500) {
+    // Calculate the total number of elements in the matrix
+    int totalElements = rows * cols;
+
+    // Apply logarithm base 2 transformation
+    double logElements = std::log2(static_cast<double>(totalElements));
+
+    // Calculate the number of threads
+    int numThreads = static_cast<int>(logElements * scalingFactor);
+
+    // Get the number of hardware threads
+    int hardwareThreads = std::thread::hardware_concurrency();
+    if (hardwareThreads == 0) {
+        // If hardware_concurrency() returns 0, assume a default value of 4
+        hardwareThreads = 4;
+    }
+
+    // Ensure the number of threads is at least the number of hardware threads
+    numThreads = std::max(numThreads, hardwareThreads);
+
+    // Cap the number of threads to a maximum limit
+    return std::min(numThreads, maxThreads);
 }
