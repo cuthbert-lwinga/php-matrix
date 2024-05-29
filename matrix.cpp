@@ -1,385 +1,313 @@
 #include "matrix.h"
-#include <stdexcept>
 #include <iostream>
 #include <thread>
 #include <vector>
-#include <cmath> 
-#include <functional>
-#include "ThreadManager.h"
-#include <random>
-
-double Matrix::threadScalingFactor = 1.0;
-
-int calculateThreadsBasedOnMatrixSize(int rows, int cols, double scalingFactor, int maxThreads);
-
-
-Matrix::Matrix(int rows, int cols, double value) : data(rows, cols) {
-
-
-    threads = calculateThreadsBasedOnMatrixSize(rows,cols, Matrix::threadScalingFactor,2500);
-
-    Eigen::setNbThreads(threads);
-
-    data.setConstant(value);
-}
-
-Matrix::Matrix(const Eigen::MatrixXd& other) : data(other) {
-     threads = calculateThreadsBasedOnMatrixSize(other.rows(),other.cols(), Matrix::threadScalingFactor,2500);
-
-    Eigen::setNbThreads(threads);
-
-}
-
-
-Matrix::Matrix(const std::vector<std::vector<double>>& inputData) {
-    int rows = inputData.size();
-    int cols = rows > 0 ? inputData[0].size() : 0;
-
-    data.resize(rows, cols);
-
-    // Check if all rows have the same number of columns
-    for (int i = 0; i < rows; ++i) {
-        if (inputData[i].size() != cols) {
-            throw std::invalid_argument("All rows must have the same number of columns");
-        }
-    }
-
-    // Set the number of threads based on hardware concurrency
-    // Eigen::setNbThreads(std::thread::hardware_concurrency());
-
-    // Define a lambda function to initialize a range of elements
-    auto initRange = [&](int start, int end) {
-        for (int i = start; i < end; ++i) {
-            data.row(i) = Eigen::Map<const Eigen::RowVectorXd>(&inputData[i][0], cols);
-        }
-    };
-
-    // Initialize the matrix in parallel using Eigen's internal parallelization
-    //#pragma omp parallel for
-    for (int i = 0; i < rows; ++i) {
-        data.row(i) = Eigen::Map<const Eigen::RowVectorXd>(&inputData[i][0], cols);
-    }
-}
-
-
-
-void addRange(const Eigen::MatrixXd& A, const Eigen::MatrixXd& B, Eigen::MatrixXd& C, int startRow, int endRow) {
-    C.block(startRow, 0, endRow - startRow, A.cols()) = A.block(startRow, 0, endRow - startRow, A.cols()) + B.block(startRow, 0, endRow - startRow, B.cols());
-}
-
-void subtractRange(const Eigen::MatrixXd& A, const Eigen::MatrixXd& B, Eigen::MatrixXd& C, int startRow, int endRow) {
-    C.block(startRow, 0, endRow - startRow, A.cols()) = A.block(startRow, 0, endRow - startRow, A.cols()) - B.block(startRow, 0, endRow - startRow, B.cols());
-}
-
-Matrix Matrix::add(const Matrix& other) const {
-    if (data.rows() != other.data.rows() || data.cols() != other.data.cols()) {
-        throw std::invalid_argument("Matrix dimensions must match for addition");
-    }
-
-    // Enable Eigen's multi-threading
-    // Eigen::setNbThreads(std::thread::hardware_concurrency());
-
-    Matrix result(data.rows(), data.cols());
-    result.data = data + other.data;
-    return result;
-}
-
-Matrix Matrix::subtract(const Matrix& other) const {
-    if (data.rows() != other.data.rows() || data.cols() != other.data.cols()) {
-        throw std::invalid_argument("Matrix dimensions must match for subtraction");
-    }
-
-
-    // Matrix result(data.rows(), data.cols());
-    // result.data = data - other.data;
-    // return result;
-
-
-    return Matrix(data - other.data);
-
-}
-
-
-Matrix Matrix::log() const {
-    Matrix result(data.rows(), data.cols());
-    result.data = data.array().log();
-    return result;
-}
-
-Matrix Matrix::sqrt() const {
-    Matrix result(data.rows(), data.cols());
-    result.data = data.array().sqrt();
-    return result;
-}
-
-Matrix Matrix::exp(double base) const {
-    Matrix result(data.rows(), data.cols());
-    result.data = data.array().pow(base);
-    return result;
-}
-
-Matrix Matrix::sum(int axis) const {
-    if (axis == -1) {
-        // Sum all elements and return a 1x1 matrix
-        double total_sum = data.sum();
-        return Matrix(1, 1, total_sum);
-    } else if (axis == 0) {
-        // Sum along columns (resulting in a row vector)
-        Eigen::RowVectorXd col_sum = data.colwise().sum();
-        Matrix result(1, col_sum.size());
-        result.data = col_sum;
-        return result;
-    } else if (axis == 1) {
-        // Sum along rows (resulting in a column vector)
-        Eigen::VectorXd row_sum = data.rowwise().sum();
-        Matrix result(row_sum.size(), 1);
-        result.data = row_sum;
-        return result;
-    } else {
-        throw std::invalid_argument("Invalid axis for sum. Axis must be -1, 0, or 1.");
-    }
-}
-
-
-Matrix Matrix::inverse() const {
-    if (data.rows() != data.cols()) {
-        throw std::invalid_argument("Matrix must be square to calculate its inverse.");
-    }
-    return Matrix(data.inverse().eval());
-}
-
-double Matrix::determinant() const {
-    if (data.rows() != data.cols()) {
-        throw std::invalid_argument("Matrix must be square to calculate its determinant.");
-    }
-    return data.determinant();
-}
-
-std::pair<Matrix, Matrix> Matrix::eigen() const {
-    if (data.rows() != data.cols()) {
-        throw std::invalid_argument("Matrix must be square to calculate its eigenvalues and eigenvectors.");
-    }
-    Eigen::EigenSolver<Eigen::MatrixXd> solver(data);
-    Matrix eigenvalues(1, data.rows());
-    Matrix eigenvectors(data.rows(), data.cols());
-    eigenvalues.data = solver.eigenvalues().real();
-    eigenvectors.data = solver.eigenvectors().real();
-    return std::make_pair(eigenvalues, eigenvectors);
-}
-
-
-Matrix Matrix::operator-(const Matrix& other) const {
-    if (data.rows() != other.data.rows() || data.cols() != other.data.cols()) {
-        throw std::invalid_argument("Matrix dimensions must match for subtraction");
-    }
-
-    return Matrix(data - other.data);
-}
-
-
-Matrix Matrix::operator-(double scalar) const {
-    
-    return Matrix(data.array() - scalar);
-}
-
-Matrix Matrix::transpose() const {
-    return Matrix(data.transpose());
-}
-
-
-void dotProductRange(const Eigen::MatrixXd& A, const Eigen::MatrixXd& B, Eigen::MatrixXd& C, int startRow, int endRow) {
-    C.block(startRow, 0, endRow - startRow, B.cols()) = A.block(startRow, 0, endRow - startRow, A.cols()) * B;
-}
-
-
-void dotProductRange(const Eigen::Ref<const Eigen::MatrixXd>& data,
-                                const Eigen::Ref<const Eigen::MatrixXd>& otherData,
-                                Eigen::Ref<Eigen::MatrixXd> resultData,
-                                int startRow, int endRow) {
-        resultData.block(startRow, 0, endRow - startRow, resultData.cols()) =
-            data.block(startRow, 0, endRow - startRow, data.cols()) * otherData;
-    }
-
-
-Matrix Matrix::dot(const Matrix& other) const {
-    if (data.cols() != other.data.rows()) {
-        throw std::invalid_argument("Matrix dimensions must be compatible for dot product");
-    }
-
-    Matrix result(data.rows(), other.data.cols());
-    int numThreads = threads;
-    int rowsPerThread = data.rows() / numThreads;
-
-    ThreadManager threadManager(threads);
-
-    auto dataRef = std::cref(data);
-    auto otherDataRef = std::cref(other.data);
-    auto resultDataRef = std::ref(result.data);
-
-    for (int i = 0; i < numThreads; ++i) {
-        int startRow = i * rowsPerThread;
-        int endRow = (i == numThreads - 1) ? data.rows() : (i + 1) * rowsPerThread;
-
-        threadManager.submitTask([startRow, endRow, dataRef, otherDataRef, resultDataRef] {
-            dotProductRange(dataRef, otherDataRef, resultDataRef, startRow, endRow);
-        });
-    }
-
-    threadManager.waitForCompletion();
-
-    return result;
-}
-
-// Matrix Matrix::dot(const Matrix& other) const {
-//     if (data.cols() != other.data.rows()) {
-//         throw std::invalid_argument("Matrix dimensions must be compatible for dot product");
-//     }
-
-//     Matrix result(data.rows(), other.data.cols());
-//     int numThreads = threads;
-//     int rowsPerThread = data.rows() / numThreads;
-
-//     auto dataRef = std::cref(data);
-//     auto otherDataRef = std::cref(other.data);
-//     auto resultDataRef = std::ref(result.data);
-
-//     std::vector<std::thread> threads;
-//     for (int i = 0; i < numThreads; ++i) {
-//         int startRow = i * rowsPerThread;
-//         int endRow = (i == numThreads - 1) ? data.rows() : (i + 1) * rowsPerThread;
-//         threads.push_back(std::thread(dotProductRange, dataRef, otherDataRef, resultDataRef, startRow, endRow));
-//     }
-
-//     for (auto& t : threads) {
-//         t.join();
-//     }
-
-//     return result;
-// }
-
-Matrix Matrix::addScalar(const double other) const {
-    Matrix result(data.rows(), data.cols());
-    result.data = data.array() + other;
-    return result;
-}
-
-Matrix Matrix::subtractScalar(const double other) const {
-    Matrix result(data.rows(), data.cols());
-    result.data = data.array() - other;
-    return result;
-}
-
-
-// other functions 
-std::vector<int> Matrix::argmax(int axis) const {
-    std::vector<int> indices;
-
-    if (axis == 0) {
-        // Max along columns
-        indices.resize(data.cols());
-        // Eigen::setNbThreads(this->threads);
-        
-        #pragma omp parallel for num_threads(this->threads)
-        for (int j = 0; j < data.cols(); ++j) {
-            int maxIndex = 0;
-            for (int i = 1; i < data.rows(); ++i) {
-                if (data(i, j) > data(maxIndex, j)) {
-                    maxIndex = i;
-                }
+#include <map> 
+#include <algorithm>
+#include <cmath>
+// ThreadManager MatrixWrapper::threadManager(4);
+int calculateThreadsBasedOnMatrixSize__(int rows, int cols, double scalingFactor, int maxThreads);
+
+void Matrix::__construct(Php::Parameters &params)
+{
+
+   if (params.size() == 1 && params[0].isArray()) {
+        Php::Value inputData = params[0];
+        std::vector<std::vector<double>> data;
+
+        for (auto &row : inputData) {
+            std::vector<double> rowData;
+            for (auto &element : row.second) {
+                rowData.push_back(element.second.floatValue());
             }
-            indices[j] = maxIndex;
+            data.push_back(rowData);
         }
 
-    } else if (axis == 1) {
-        // Max along rows
-        indices.resize(data.rows());
-        Eigen::setNbThreads(this->threads);
-        
-        #pragma omp parallel for num_threads(this->threads)
-        for (int i = 0; i < data.rows(); ++i) {
-            int maxIndex = 0;
-            for (int j = 1; j < data.cols(); ++j) {
-                if (data(i, j) > data(i, maxIndex)) {
-                    maxIndex = j;
-                }
-            }
-            indices[i] = maxIndex;
-        }
+        int rows = data.size();
+        int cols = rows > 0 ? data[0].size() : 0;
 
+        // Initialize the Matrix object with the input data using parallelization
+        matrix = new MatrixWrapper(rows, cols);
+
+
+        // Initialize the matrix in parallel using Eigen's internal parallelization
+        #pragma omp parallel for
+        for (int i = 0; i < rows; ++i) {
+            matrix->data.row(i) = Eigen::Map<const Eigen::RowVectorXd>(&data[i][0], cols);
+        }
     } else {
-        throw std::invalid_argument("Axis must be 0 or 1");
+        
+        matrix = new MatrixWrapper(1, 1);
+
+
+        //throw Php::Exception("Invalid parameters for MatrixWrapper constructor");
     }
 
-    return indices;
+
+
 }
 
 
-Matrix Matrix::clip(double min_val, double max_val) const {
-    Matrix result(data.rows(), data.cols());
-    result.data = data.array().min(max_val).max(min_val);
+Php::Value Matrix::add(Php::Parameters &params)
+{
+    if (params.size() == 1 && params[0].isObject() && params[0].instanceOf("Matrix")) {
+        Matrix *other = (Matrix *)params[0].implementation();
+        MatrixWrapper result = matrix->add(*(other->matrix));
+        auto phpObject = Php::Object("Matrix", new Matrix(std::move(result)));
+        return phpObject;
+
+    } else if (params.size() == 1) {
+        // Scalar addition
+        double scalar = params[0];
+        MatrixWrapper result = matrix->addScalar(scalar);
+        return Php::Object("Matrix", new Matrix(std::move(result)));
+    }
+
+    throw Php::Exception("Invalid parameters for add method");
+}
+
+
+Php::Value Matrix::div(Php::Parameters &params)
+{
+    if (params.size() == 1 && params[0].isObject() && params[0].instanceOf("Matrix")) {
+        
+        Matrix *other = (Matrix *)params[0].implementation();
+        MatrixWrapper result = (*matrix) / (*(other->matrix));
+        auto phpObject = Php::Object("Matrix", new Matrix(std::move(result)));
+        return phpObject;
+
+    } else if (params.size() == 1) {
+        // Scalar addition
+        double scalar = params[0];
+        MatrixWrapper result = (*matrix) / scalar;
+
+        return Php::Object("Matrix", new Matrix(std::move(result)));
+    }
+
+    throw Php::Exception("Invalid parameters for add method");
+}
+
+
+Php::Value Matrix::log()
+{
+    MatrixWrapper result = matrix->log();
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+Php::Value Matrix::exp(Php::Parameters &params)
+{
+    double base = params.size() > 0 ? params[0].numericValue() : std::exp(1.0); // Default base is e
+    MatrixWrapper result = matrix->exp(base);
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+Php::Value Matrix::inverse()
+{
+    MatrixWrapper result = matrix->inverse();
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+Php::Value Matrix::determinant()
+{
+    double result = matrix->determinant();
+    return Php::Value(result);
+}
+
+Php::Value Matrix::eigen()
+{
+    auto result = matrix->eigen();
+    Php::Array resultArray;
+    resultArray[0] = Php::Object("Matrix", new Matrix(result.first));
+    resultArray[1] = Php::Object("Matrix", new Matrix(result.second));
+    return resultArray;
+}
+
+
+Php::Value Matrix::sum(Php::Parameters &params)
+{
+    int axis = params.size() > 0 ? params[0].numericValue() : -1;
+    MatrixWrapper result = matrix->sum(axis);
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+
+Php::Value Matrix::transpose(){
+    MatrixWrapper result = matrix->transpose();
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+Php::Value Matrix::subtract(Php::Parameters &params)
+{
+    if (params.size() == 1 && params[0].isObject() && params[0].instanceOf("Matrix")) {
+        Matrix *other = (Matrix *)params[0].implementation();
+        MatrixWrapper result = matrix->subtract(*(other->matrix));
+        return Php::Object("Matrix", new Matrix(result));
+    } else if (params.size() == 1) {
+        // Scalar subtraction
+        double scalar = params[0];
+        MatrixWrapper result = matrix->subtractScalar(scalar);
+        return Php::Object("Matrix", new Matrix(result));
+    }
+
+    throw Php::Exception("Invalid parameters for subtract method");
+}
+
+Php::Value Matrix::dot(Php::Parameters &params)
+{
+
+    if (params[0].isObject()) {
+        Matrix *other = (Matrix *)params[0].implementation();
+        MatrixWrapper result = matrix->dot(*(other->matrix));
+        return Php::Object("Matrix", new Matrix(std::move(result)));
+    }else if (params[0].isNumeric()) {
+        double scalar = params[0].numericValue();
+        MatrixWrapper result = (*matrix) * scalar;
+        return Php::Object("Matrix", new Matrix(std::move(result)));
+    } else {
+        throw Php::Exception("Invalid parameter type for dot/mul");
+    }
+}
+
+
+
+void Matrix::setData(Php::Parameters &params)
+{
+    Php::Array inputData = params[0];
+    int newRows = inputData.size();
+    int newCols = newRows > 0 ? ((Php::Array)inputData[0]).size() : 0;
+
+    for (int i = 0; i < newRows; ++i) {
+        if (((Php::Array)inputData[i]).size() != newCols) {
+            throw Php::Exception("All rows must have the same number of columns");
+        }
+    }
+
+    delete matrix;
+    matrix = new MatrixWrapper(newRows, newCols);
+
+    for (int i = 0; i < newRows; ++i) {
+        for (int j = 0; j < newCols; ++j) {
+            (*matrix)(i, j) = inputData[i][j];
+        }
+    }
+}
+
+Php::Value Matrix::getData() const
+{
+    Php::Array outputData;
+    for (int i = 0; i < matrix->getRows(); ++i) {
+        Php::Array row;
+        for (int j = 0; j < matrix->getCols(); ++j) {
+            row[j] = (*matrix)(i, j);
+        }
+        outputData[i] = row;
+    }
+    return outputData;
+}
+
+
+
+
+Php::Value Matrix::argmax(Php::Parameters& params) {
+    int axis = params.size() > 0 ? params[0].numericValue() : 0;
+    std::vector<int> indices = matrix->argmax(axis);
+
+    Php::Array result;
+    for (size_t i = 0; i < indices.size(); ++i) {
+        result[i] = indices[i];
+    }
+
     return result;
 }
 
-
-    // Operator overloads for +, -, *
-
-Matrix Matrix::operator/(const Matrix& other) const {
-    if (data.rows() != other.getRows() || data.cols() != other.getCols()) {
-        throw std::invalid_argument("Matrices must have the same dimensions for division.");
-    }
+Php::Value Matrix::clip(Php::Parameters &params) {
+    double min_val = params[0].numericValue();
+    double max_val = params[1].numericValue();
+    MatrixWrapper result = matrix->clip(min_val, max_val);
     
-    return Matrix(data.array() / other.data.array());
-}
-
-Matrix Matrix::operator/(double scalar) const {
-    if (scalar == 0) {
-        throw std::invalid_argument("Division by zero encountered in scalar division.");
-    }
-
-    return Matrix(data.array() + scalar);
-
+    auto phpObject = Php::Object("Matrix", new Matrix(std::move(result)));
+    return phpObject;
 }
 
 
-Matrix Matrix::operator*(const Matrix& other) const {
-    if (data.rows() != other.getRows() || data.cols() != other.getCols()) {
-        throw std::invalid_argument("Matrices must have the same dimensions for division.");
-    }
+Php::Value Matrix::shape(){
+
+    Php::Value array;
     
-    return Matrix(data.array() * other.data.array());
+    array[0] = matrix->getRows();
+    
+    array[1] = matrix->getCols();
+
+
+    return array;
 }
 
-Matrix Matrix::operator*(double scalar) const {
-    if (scalar == 0) {
-        throw std::invalid_argument("Division by zero encountered in scalar division.");
+
+Php::Value Matrix::random(Php::Parameters &params) {
+    int rows = params[0].numericValue();
+    int cols = params[1].numericValue();
+    double min = params.size() > 2 ? params[2].floatValue() : 0.0;
+    double max = params.size() > 3 ? params[3].floatValue() : 1.0;
+
+    MatrixWrapper result = matrix->random(rows, cols, min, max);
+
+    matrix = new MatrixWrapper(std::move(result));
+
+    auto phpObject = Php::Object("Matrix", new Matrix(std::move(result)));
+    return phpObject;
+}
+
+
+void Matrix::display() const
+{
+    matrix->display();
+}
+
+
+Php::Value Matrix::offsetGet(Php::Parameters &params)
+{
+    int row = params[0].numericValue();
+    if (params.size() == 2) {
+        int col = params[1].numericValue();
+        return (*matrix)(row, col);
+    }
+    // Return a row as an array
+    std::vector<double> row_data;
+    for (int col = 0; col < matrix->getCols(); ++col) {
+        row_data.push_back((*matrix)(row, col));
+    }
+    return row_data;
+}
+
+void Matrix::offsetSet(Php::Parameters &params) {
+    if (params.size() != 2 || !params[0].isNumeric() || !params[1].isArray()) {
+        throw Php::Exception("Invalid argument(s) for offsetSet");
     }
 
-    return Matrix(data.array() * scalar);
+    int index = params[0].numericValue();
 
+    if (index >= matrix->getRows() || index < 0) {
+        throw Php::Exception("Index out of bounds");
+    }
+
+    Php::Array phpArray = params[1];
+
+    if (phpArray.size() != matrix->getCols()) {
+        throw Php::Exception("Array size does not match matrix column count");
+    }
+
+    Eigen::VectorXd vec(matrix->getCols());
+    for (int i = 0; i < phpArray.size(); ++i) {
+        vec(i) = phpArray[i];
+    }
+
+    matrix->data.row(index) = vec;
 }
 
-
-Matrix Matrix::random(int rows, int cols, double min, double max) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<> dis(min, max);
-
-    Eigen::MatrixXd matrix = Eigen::MatrixXd::NullaryExpr(rows, cols, [&]() { return dis(gen); });
-
-    return Matrix(matrix);
-}
-
-
-void Matrix::display() const {
-    std::cout << data << std::endl;
-}
-
-
-
-// Helper functions 
+// Helper functions
 
 // Function to calculate a safe number of threads for context switching based on matrix size
-int calculateThreadsBasedOnMatrixSize(int rows, int cols, double scalingFactor = 1.0, int maxThreads = 2500) {
+int calculateThreadsBasedOnMatrixSize__(int rows, int cols, double scalingFactor = 1.0, int maxThreads = 2500) {
     // Calculate the total number of elements in the matrix
     int totalElements = rows * cols;
 
@@ -402,3 +330,4 @@ int calculateThreadsBasedOnMatrixSize(int rows, int cols, double scalingFactor =
     // Cap the number of threads to a maximum limit
     return std::min(numThreads, maxThreads);
 }
+

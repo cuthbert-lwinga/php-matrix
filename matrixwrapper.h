@@ -1,57 +1,72 @@
 #ifndef MATRIXWRAPPER_H
 #define MATRIXWRAPPER_H
 
-#include <phpcpp.h>
-#include "matrix.h"
-#include "ThreadManager.h"
+#include <Eigen/Dense>
+#include <vector>
 
-class MatrixWrapper : public Php::Base
-{
-private:
-    Matrix* matrix;
+class MatrixWrapper {
 
 public:
-    MatrixWrapper() {}
-    MatrixWrapper(const Matrix &matrix) : matrix(new Matrix(matrix)) {}
-    virtual ~MatrixWrapper() { delete matrix; }
-    // static ThreadManager threadManager;
+    Eigen::MatrixXd data;
+    static double threadScalingFactor;
+    int threads = 10;
 
-    void __construct(Php::Parameters &params);
-    void setData(Php::Parameters &params);
-    
+    MatrixWrapper(int rows, int cols, double value = 0.0);
+    MatrixWrapper(const std::vector<std::vector<double>> &inputData);
+    MatrixWrapper(const Eigen::MatrixXd& other);
+
+
+    // Static method to set the thread scaling factor
+    static void setThreadScalingFactor(double factor) {
+        threadScalingFactor = factor;
+    }
+    // Getters
+
+    int getRows() const { return data.rows(); }
+    int getCols() const { return data.cols(); }
+
     // Arithimetic Operations (addition, subtraction, multiplication, division)
-    Php::Value add(Php::Parameters &params);
-    Php::Value subtract(Php::Parameters &params);
-    Php::Value div(Php::Parameters& params);
-    Php::Value dot(Php::Parameters &params);
-    Php::Value log();
-    Php::Value exp(Php::Parameters &params); // Update to accept parameters
-    Php::Value sum(Php::Parameters &params);
-    Php::Value inverse();
-    Php::Value determinant();
-    Php::Value eigen();
+
+    MatrixWrapper add(const MatrixWrapper &other) const;
+    MatrixWrapper subtract(const MatrixWrapper &other) const;
+    MatrixWrapper dot(const MatrixWrapper &other) const;
+    MatrixWrapper addScalar(const double other) const;
+    MatrixWrapper subtractScalar(const double other) const;
+    MatrixWrapper log() const;
+    MatrixWrapper sqrt() const; 
+    MatrixWrapper exp(double base = std::exp(1.0)) const;
+    MatrixWrapper sum(int axis = -1) const;
+    MatrixWrapper inverse() const;
+    double determinant() const;
+    std::pair<MatrixWrapper, MatrixWrapper> eigen() const; // Eigenvalues and Eigenvectors
+
+    // Other functions    
+    std::vector<int> argmax(int axis = 0) const;
+    MatrixWrapper clip(double min_val, double max_val) const;
+    MatrixWrapper transpose() const; 
+    MatrixWrapper random(int rows, int cols, double min = 0.0, double max = 1.0);
 
 
-    // Other functions
-    Php::Value argmax(Php::Parameters& params);
-    Php::Value transpose();
-    Php::Value shape();
-    Php::Value clip(Php::Parameters &params);
-    Php::Value random(Php::Parameters &params);
-    
-    Php::Value offsetGet(Php::Parameters &params);
-    void offsetSet(Php::Parameters &params);
+    // Operator overloads for +, -, *
+    double& operator()(int row, int col) { return data(row, col); }
+    const double& operator()(int row, int col) const { return data(row, col); }
 
-    Php::Value getData() const;
-    void display() const;
-
-
-    // Method to set the thread scaling factor
-    static void setThreadScalingFactor(Php::Parameters &params) {
-        double factor = params[0].floatValue();
-        Matrix::setThreadScalingFactor(factor);
+    MatrixWrapper operator+(const MatrixWrapper &other) const {
+        return add(other);
     }
 
+    MatrixWrapper operator-(const MatrixWrapper &other) const ;
+    MatrixWrapper operator-(double scalar) const;
+
+    MatrixWrapper operator*(const MatrixWrapper &other) const;
+    MatrixWrapper operator*(double scalar) const;
+    // Inside the Matrix class definition
+    MatrixWrapper operator/(const MatrixWrapper& other) const;
+    MatrixWrapper operator/(double scalar) const;
+
+
+    void display() const;
 };
 
-#endif // MATRIXWRAPPER_H
+
+#endif // MATRIX_H

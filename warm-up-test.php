@@ -96,11 +96,11 @@ $min_val = 0.2;
 $max_val = 0.8;
 $scalling = 1.0;
 
-MatrixWrapper::setThreadScalingFactor($scalling);
+Matrix::setThreadScalingFactor($scalling);
 
 echo " MATRIX($rows,$cols) scalling: $scalling\n\n";
 
-$matrix1 = new MatrixWrapper();
+$matrix1 = new Matrix();
 $matrix1->random($rows,$cols,$min_val,$max_val);
 
 $matrix2 = $matrix1;//new MatrixWrapper($m2);
@@ -110,7 +110,7 @@ $matrix2 = $matrix1;//new MatrixWrapper($m2);
 // }, "Init Time");
 
 measure_time(function() use ($m1,$rows,$cols,$min_val,$max_val) {
-    $matrix1 = new MatrixWrapper();
+    $matrix1 = new Matrix();
     $matrix1->random($rows,$cols,$min_val,$max_val);
 }, "Init Time for rand gen ($rows,$cols,$min_val,$max_val)");
 
