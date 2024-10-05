@@ -5,6 +5,8 @@
 #include <map> 
 #include <algorithm>
 #include <cmath>
+#include <random>
+
 // ThreadManager MatrixWrapper::threadManager(4);
 int calculateThreadsBasedOnMatrixSize__(int rows, int cols, double scalingFactor, int maxThreads);
 
@@ -37,7 +39,7 @@ void Matrix::__construct(Php::Parameters &params)
         }
     } else {
         
-        matrix = new MatrixWrapper(1, 1);
+        matrix = new MatrixWrapper(1, 1,0.0);
 
 
         //throw Php::Exception("Invalid parameters for MatrixWrapper constructor");
@@ -47,46 +49,131 @@ void Matrix::__construct(Php::Parameters &params)
 
 }
 
-
-Php::Value Matrix::add(Php::Parameters &params)
+Php::Value Matrix::getItem(Php::Parameters &params)
 {
+    if (!matrix) {
+        throw Php::Exception("Matrix is not initialized");
+    }
+    int row = params[0];
+    int col = params[1];
+    try {
+        return matrix->getItem(row, col);
+    } catch (const std::out_of_range& e) {
+        throw Php::Exception(e.what());
+    }
+}
+
+void Matrix::setItem(Php::Parameters &params)
+{
+    if (!matrix) {
+        throw Php::Exception("Matrix is not initialized");
+    }
+    int row = params[0];
+    int col = params[1];
+    double value = params[2];
+    try {
+        matrix->setItem(row, col, value);
+    } catch (const std::out_of_range& e) {
+        throw Php::Exception(e.what());
+    }
+}
+
+Php::Value Matrix::getRow(Php::Parameters &params)
+{
+    int row = params[0];
+    try {
+        MatrixWrapper rowMatrix = matrix->getRow(row);
+        Matrix* newMatrix = new Matrix(rowMatrix);
+        return Php::Object("Matrix", newMatrix);
+    }
+    catch (const std::out_of_range& e) {
+        throw Php::Exception(e.what());
+    }
+}
+
+void Matrix::setRow(Php::Parameters &params)
+{
+    int row = params[0];
+    Php::Value rowData = params[1];
+    if (!rowData.instanceOf("Matrix")) {
+        throw Php::Exception("Row data must be a Matrix object");
+    }
+    Matrix *rowMatrix = (Matrix *)rowData.implementation();
+    try {
+        matrix->setRow(row, *(rowMatrix->matrix));
+    }
+    catch (const std::exception& e) {
+        throw Php::Exception(e.what());
+    }
+}
+
+Php::Value Matrix::getCol(Php::Parameters &params)
+{
+    int col = params[0];
+    try {
+        MatrixWrapper colMatrix = matrix->getCol(col);
+        Matrix* newMatrix = new Matrix(colMatrix);
+        return Php::Object("Matrix", newMatrix);
+    }
+    catch (const std::exception& e) {
+        throw Php::Exception(e.what());
+    }
+}
+
+void Matrix::setCol(Php::Parameters &params)
+{
+    int col = params[0];
+    Php::Value colData = params[1];
+    if (!colData.instanceOf("Matrix")) {
+        throw Php::Exception("Column data must be a Matrix object");
+    }
+    Matrix *colMatrix = (Matrix *)colData.implementation();
+    try {
+        matrix->setCol(col, *(colMatrix->matrix));
+    }
+    catch (const std::exception& e) {
+        throw Php::Exception(e.what());
+    }
+}
+
+Php::Value Matrix::add(Php::Parameters &params) {
     if (params.size() == 1 && params[0].isObject() && params[0].instanceOf("Matrix")) {
         Matrix *other = (Matrix *)params[0].implementation();
         MatrixWrapper result = matrix->add(*(other->matrix));
-        auto phpObject = Php::Object("Matrix", new Matrix(std::move(result)));
-        return phpObject;
-
+        return Php::Object("Matrix", new Matrix(result));
     } else if (params.size() == 1) {
-        // Scalar addition
-        double scalar = params[0];
+        double scalar = params[0].floatValue();
         MatrixWrapper result = matrix->addScalar(scalar);
-        return Php::Object("Matrix", new Matrix(std::move(result)));
+        return Php::Object("Matrix", new Matrix(result));
     }
 
     throw Php::Exception("Invalid parameters for add method");
 }
 
 
-Php::Value Matrix::div(Php::Parameters &params)
-{
-    if (params.size() == 1 && params[0].isObject() && params[0].instanceOf("Matrix")) {
-        
+Php::Value Matrix::div(Php::Parameters &params) {
+    if (params.empty()) {
+        throw Php::Exception("Division requires an argument");
+    }
+
+    if (params[0].isNumeric()) {
+        // Scalar division
+        double scalar = params[0].numericValue();
+        return Php::Object("Matrix", new Matrix(*matrix / scalar));
+    } else if (params[0].isObject() && params[0].instanceOf("Matrix")) {
+        // Matrix division
         Matrix *other = (Matrix *)params[0].implementation();
-        MatrixWrapper result = (*matrix) / (*(other->matrix));
-        auto phpObject = Php::Object("Matrix", new Matrix(std::move(result)));
-        return phpObject;
-
-    } else if (params.size() == 1) {
-        // Scalar addition
-        double scalar = params[0];
-        MatrixWrapper result = (*matrix) / scalar;
-
-        return Php::Object("Matrix", new Matrix(std::move(result)));
+        
+        try {
+            MatrixWrapper result = *matrix / *(other->matrix);
+            return Php::Object("Matrix", new Matrix(result));
+        } catch (const std::exception& e) {
+            throw Php::Exception(e.what());
+        }
+    } else {
+        throw Php::Exception("Invalid argument type for division");
     }
-
-    throw Php::Exception("Invalid parameters for add method");
 }
-
 
 Php::Value Matrix::log()
 {
@@ -123,14 +210,6 @@ Php::Value Matrix::eigen()
 }
 
 
-Php::Value Matrix::sum(Php::Parameters &params)
-{
-    int axis = params.size() > 0 ? params[0].numericValue() : -1;
-    MatrixWrapper result = matrix->sum(axis);
-    return Php::Object("Matrix", new Matrix(result));
-}
-
-
 Php::Value Matrix::transpose(){
     MatrixWrapper result = matrix->transpose();
     return Php::Object("Matrix", new Matrix(result));
@@ -144,7 +223,7 @@ Php::Value Matrix::subtract(Php::Parameters &params)
         return Php::Object("Matrix", new Matrix(result));
     } else if (params.size() == 1) {
         // Scalar subtraction
-        double scalar = params[0];
+        double scalar = params[0].floatValue();
         MatrixWrapper result = matrix->subtractScalar(scalar);
         return Php::Object("Matrix", new Matrix(result));
     }
@@ -152,22 +231,47 @@ Php::Value Matrix::subtract(Php::Parameters &params)
     throw Php::Exception("Invalid parameters for subtract method");
 }
 
+
 Php::Value Matrix::dot(Php::Parameters &params)
 {
-
-    if (params[0].isObject()) {
-        Matrix *other = (Matrix *)params[0].implementation();
-        MatrixWrapper result = matrix->dot(*(other->matrix));
-        return Php::Object("Matrix", new Matrix(std::move(result)));
-    }else if (params[0].isNumeric()) {
-        double scalar = params[0].numericValue();
-        MatrixWrapper result = (*matrix) * scalar;
-        return Php::Object("Matrix", new Matrix(std::move(result)));
+    if (params.size() == 1) {
+        if (params[0].isObject() && params[0].instanceOf("Matrix")) {
+            Matrix *other = (Matrix *)params[0].implementation();
+            MatrixWrapper result = matrix->dot(*(other->matrix));
+            return Php::Object("Matrix", new Matrix(result));
+        } else {
+            double scalar = params[0].numericValue();
+            MatrixWrapper result = (*matrix) * scalar;
+            return Php::Object("Matrix", new Matrix(result));
+        } 
     } else {
-        throw Php::Exception("Invalid parameter type for dot/mul");
+        throw Php::Exception("Invalid number of parameters for dot/mul");
     }
 }
 
+
+Php::Value Matrix::multiply(Php::Parameters &params) {
+    if (params.size() == 1) {
+        if (params[0].isObject() && params[0].instanceOf("Matrix")) {
+            Matrix *other = (Matrix *)params[0].implementation();
+            MatrixWrapper result(matrix->getRows(), matrix->getCols());
+            if (matrix->getCols() == other->matrix->getCols() && matrix->getRows() == other->matrix->getRows()) {
+                result = matrix->multiplyElementwise(*(other->matrix));
+            } else if (other->matrix->getCols() == 1 && matrix->getRows() == other->matrix->getRows()) {
+                result = matrix->multiplyElementwise(*(other->matrix));
+            } else {
+                throw Php::Exception("Matrix dimensions must agree for element-wise multiplication or allow for broadcasting.");
+            }
+            return Php::Object("Matrix", new Matrix(result));
+        } else {
+            double scalar = params[0].floatValue();
+            MatrixWrapper result = (*matrix) * scalar;
+            return Php::Object("Matrix", new Matrix(result));
+        }
+    } else {
+        throw Php::Exception("Invalid number of parameters for multiply");
+    }
+}
 
 
 void Matrix::setData(Php::Parameters &params)
@@ -220,9 +324,32 @@ Php::Value Matrix::argmax(Php::Parameters& params) {
     return result;
 }
 
+// In matrix.cpp
+Php::Value Matrix::min(Php::Parameters &params)
+{
+    int axis = -1;
+    double initial = std::numeric_limits<double>::max();
+    Eigen::MatrixXd where;
+
+    if (params.size() > 0) axis = params[0].numericValue();
+    if (params.size() > 1) initial = params[1].numericValue();
+    if (params.size() > 2 && params[2].isArray()) {
+        Php::Value phpWhere = params[2];
+        where = Eigen::MatrixXd::Constant(matrix->getRows(), matrix->getCols(), 1.0);
+        for (int i = 0; i < matrix->getRows(); ++i) {
+            for (int j = 0; j < matrix->getCols(); ++j) {
+                where(i, j) = phpWhere[i][j] ? 1.0 : 0.0;
+            }
+        }
+    }
+
+    MatrixWrapper result = matrix->min(axis, initial, where);
+    return Php::Object("Matrix", new Matrix(result));
+}
+
 Php::Value Matrix::clip(Php::Parameters &params) {
-    double min_val = params[0].numericValue();
-    double max_val = params[1].numericValue();
+    double min_val = params[0];
+    double max_val = params[1];
     MatrixWrapper result = matrix->clip(min_val, max_val);
     
     auto phpObject = Php::Object("Matrix", new Matrix(std::move(result)));
@@ -248,13 +375,32 @@ Php::Value Matrix::random(Php::Parameters &params) {
     int cols = params[1].numericValue();
     double min = params.size() > 2 ? params[2].floatValue() : 0.0;
     double max = params.size() > 3 ? params[3].floatValue() : 1.0;
+    bool binomial = params.size() > 4 ? params[4].boolValue() : false;
 
-    MatrixWrapper result = matrix->random(rows, cols, min, max);
+    // MatrixWrapper result(1, 1);
+    // if (binomial) {
+    //     result = matrix->randomBinomial(rows, cols);
+    // } else {
+    //     result = matrix->random(rows, cols, min, max);
+    // }
 
-    matrix = new MatrixWrapper(std::move(result));
+    MatrixWrapper matrix = MatrixWrapper::random(rows, cols, min, max);
 
-    auto phpObject = Php::Object("Matrix", new Matrix(std::move(result)));
-    return phpObject;
+    // delete matrix;
+    // matrix = new MatrixWrapper(result);
+
+    return Php::Object("Matrix", new Matrix(matrix));
+}
+
+Php::Value Matrix::round(Php::Parameters &params) {
+    int precision = 2;
+    if (params.size() == 1 && params[0].isNumeric()) {
+       precision = params[0].numericValue();
+    }
+
+
+    MatrixWrapper result = matrix->round(precision);
+    return Php::Object("Matrix", new Matrix(result));
 }
 
 
@@ -302,6 +448,285 @@ void Matrix::offsetSet(Php::Parameters &params) {
     }
 
     matrix->data.row(index) = vec;
+}
+
+
+Php::Value Matrix::zeros(Php::Parameters &params)
+{
+    int rows = params[0];
+    int cols = params[1];
+    MatrixWrapper result(rows, cols,0.0);
+    auto phpObject = Php::Object("Matrix", new Matrix(std::move(result)));
+    return phpObject;
+    
+    }
+
+
+
+Php::Value Matrix::getSlice(Php::Parameters& params) {
+    if (params.size() != 1 || !params[0].isArray()) {
+        throw Php::Exception("getSlice expects an array parameter");
+    }
+    std::vector<int> range;
+    for (const auto& value : params[0]) {
+        range.push_back(value.second.numericValue());
+    }
+    MatrixWrapper result = matrix->getSlice(range);
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+Php::Value Matrix::zeros_like_static(Php::Parameters& params) {
+    if (params.size() > 0 && params[0].isObject()) {
+        Matrix* other = (Matrix*)params[0].implementation();
+        MatrixWrapper result = MatrixWrapper::zeros_like(*(other->matrix));
+        return Php::Object("Matrix", new Matrix(result));
+    }
+    throw Php::Exception("zeros_like expects a Matrix object parameter");
+}
+
+Php::Value Matrix::ones_like_instance() {
+    MatrixWrapper result = matrix->ones_like();
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+Php::Value Matrix::ones_like_static(Php::Parameters& params) {
+    if (params.size() > 0 && params[0].isObject()) {
+        Matrix* other = (Matrix*)params[0].implementation();
+        MatrixWrapper result = MatrixWrapper::ones_like(*(other->matrix));
+        return Php::Object("Matrix", new Matrix(result));
+    }
+    throw Php::Exception("zeros_like expects a Matrix object parameter");
+}
+
+Php::Value Matrix::zeros_like_instance() {
+    MatrixWrapper result = matrix->zeros_like();
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+Php::Value Matrix::relu(Php::Parameters &params) {
+    if (params.size() != 2) {
+        throw Php::Exception("Invalid number of parameters for relu");
+    }
+
+    double condition = params[0];
+    double val = params[1];
+
+    MatrixWrapper result = matrix->relu(condition, val);
+    return Php::Object("Matrix", new Matrix(std::move(result)));
+}
+
+// matrix.cpp
+Php::Value Matrix::reshape(Php::Parameters& params) {
+    if (params.size() != 1 && params.size() != 2) {
+        throw Php::Exception("Invalid number of parameters for reshape");
+    }
+
+    Php::Value newshape = params[0];
+    if (!newshape.isArray()) {
+        throw Php::Exception("First parameter must be an array representing the new shape");
+    }
+
+    char order = params.size() == 2 ? params[1].stringValue()[0] : 'C';
+    if (order != 'C' && order != 'F') {
+        throw Php::Exception("Invalid order parameter. Must be 'C' or 'F'");
+    }
+
+    std::vector<int> shape_vec;
+    for (auto& value : newshape) {
+        shape_vec.push_back(value.second.numericValue());
+    }
+
+    MatrixWrapper result = matrix->reshape(shape_vec, order);
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+
+Php::Value Matrix::abs() {
+    MatrixWrapper result = matrix->abs();
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+
+Php::Value Matrix::sum(Php::Parameters &params) {
+    int axis = params.size() > 0 ? params[0].numericValue() : -1;
+    double initial = params.size() > 1 ? params[1].floatValue() : 0.0;
+    Eigen::MatrixXd where = Eigen::MatrixXd::Constant(matrix->getRows(), matrix->getCols(), 0.0);
+
+    if (params.size() > 2 && params[2].isArray()) {
+        Php::Array phpArray = params[2];
+        for (int i = 0; i < matrix->getRows(); ++i) {
+            for (int j = 0; j < matrix->getCols(); ++j) {
+                where(i, j) = phpArray[i][j] ? 1.0 : 0.0;
+            }
+        }
+    }
+
+    MatrixWrapper result = matrix->sum(axis, initial, where);
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+
+Php::Value Matrix::sqrt() {
+    MatrixWrapper result = matrix->sqrt();
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+// Php::Array MatrixWrapper::getData() const {
+//     Php::Array outputData;
+//     for (int i = 0; i < data.rows(); ++i) {
+//         Php::Array row;
+//         for (int j = 0; j < data.cols(); ++j) {
+//             row[j] = data(i, j);
+//         }
+//         outputData[i] = row;
+//     }
+//     return outputData;
+// }
+
+Php::Value Matrix::pow(Php::Parameters &params) {
+    if (params.size() == 1 && params[0].isObject() && params[0].instanceOf("Matrix")) {
+        Matrix* exponent = (Matrix*)params[0].implementation();
+        MatrixWrapper result = matrix->pow(*exponent->matrix);
+        return Php::Object("Matrix", new Matrix(result));
+    } else if (params.size() == 1 && params[0].isNumeric()) {
+        double exponent = params[0].numericValue();
+        MatrixWrapper result = matrix->pow(exponent);
+        return Php::Object("Matrix", new Matrix(result));
+    } else {
+        throw Php::Exception("Invalid parameters for pow method");
+    }
+}
+
+
+Php::Value Matrix::getValuesFromIndices(Php::Parameters &params) {
+    if (params.size() != 1 || !params[0].isArray()) {
+        throw Php::Exception("Invalid parameter for getValuesFromIndices");
+    }
+
+    std::vector<int> indices;
+    Php::Array phpArray = params[0];
+    for (auto &value : phpArray) {
+        indices.push_back(value.second);
+    }
+
+    MatrixWrapper result = matrix->getValuesFromIndices(indices);
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+Php::Value Matrix::eye(Php::Parameters &params) {
+    int N = params[0].numericValue();
+    int M = params.size() > 1 ? params[1].numericValue() : -1;
+    int k = params.size() > 2 ? params[2].numericValue() : 0;
+    std::string dtype = params.size() > 3 ? params[3].stringValue() : "float";
+    std::string order = params.size() > 4 ? params[4].stringValue() : "C";
+
+    MatrixWrapper result = MatrixWrapper::eye(N, M, k, dtype, order);
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+
+Php::Value Matrix::selectRowsByIndices(Php::Parameters &params) {
+    if (params.size() != 1 || !params[0].isArray()) {
+        throw Php::Exception("Invalid parameter for selectRowsByIndices");
+    }
+
+    std::vector<int> indices;
+    Php::Array phpArray = params[0];
+    for (auto &value : phpArray) {
+        indices.push_back(value.second);
+    }
+
+    MatrixWrapper result = matrix->selectRowsByIndices(indices);
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+
+Php::Value Matrix::mean(Php::Parameters &params) {
+    int axis = params.size() > 0 ? params[0].numericValue() : -1;
+    std::string dtype = params.size() > 1 ? params[1].stringValue() : "float64";
+    Eigen::MatrixXd where = Eigen::MatrixXd::Constant(matrix->getRows(), matrix->getCols(), 0.0);
+
+    if (params.size() > 2 && params[2].isArray()) {
+        Php::Array phpArray = params[2];
+        for (int i = 0; i < matrix->getRows(); ++i) {
+            for (int j = 0; j < matrix->getCols(); ++j) {
+                where(i, j) = phpArray[i][j] ? 1.0 : 0.0;
+            }
+        }
+    }
+
+    MatrixWrapper result = matrix->mean(axis, dtype, where);
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+Php::Value Matrix::sign(Php::Parameters &params) {
+    Eigen::MatrixXd where = Eigen::MatrixXd::Constant(matrix->getRows(), matrix->getCols(), 1.0);
+
+    if (params.size() > 0 && params[0].isArray()) {
+        Php::Array phpArray = params[0];
+        for (int i = 0; i < matrix->getRows(); ++i) {
+            for (int j = 0; j < matrix->getCols(); ++j) {
+                where(i, j) = phpArray[i][j] ? 1.0 : 0.0;
+            }
+        }
+    }
+
+    MatrixWrapper result = matrix->sign(where);
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+
+Php::Value Matrix::std(Php::Parameters &params) {
+    int axis = params.size() > 0 ? params[0].numericValue() : -1; // Default to flatten array
+    double ddof = params.size() > 1 ? params[1].numericValue() : 0; // Default ddof is 0
+    MatrixWrapper result = matrix->std(axis, ddof);
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+
+Php::Value Matrix::copy()
+{
+    if (!matrix) {
+        throw Php::Exception("Matrix is not initialized");
+    }
+    Matrix* newMatrix = new Matrix(matrix->copy());
+    return Php::Object("Matrix", newMatrix);
+}
+
+Php::Value Matrix::max(Php::Parameters &params)
+{
+    int axis = -1;
+    double initial = std::numeric_limits<double>::lowest();
+    Eigen::MatrixXd where;
+
+    if (params.size() > 0) axis = params[0].numericValue();
+    if (params.size() > 1) initial = params[1].numericValue();
+    if (params.size() > 2 && params[2].isArray()) {
+        Php::Value phpWhere = params[2];
+        where = Eigen::MatrixXd::Constant(matrix->getRows(), matrix->getCols(), 1.0);
+        for (int i = 0; i < matrix->getRows(); ++i) {
+            for (int j = 0; j < matrix->getCols(); ++j) {
+                where(i, j) = phpWhere[i][j] ? 1.0 : 0.0;
+            }
+        }
+    }
+
+    MatrixWrapper result = matrix->max(axis, initial, where);
+    return Php::Object("Matrix", new Matrix(result));
+}
+
+
+Php::Value Matrix::glorot_uniform(Php::Parameters &params)
+{
+    if (params.size() != 2) {
+        throw Php::Exception("Glorot uniform initialization requires 2 parameters: fan_in and fan_out");
+    }
+
+    int fan_in = params[0].numericValue();
+    int fan_out = params[1].numericValue();
+
+    MatrixWrapper result = MatrixWrapper::glorot_uniform(fan_in, fan_out);
+    return Php::Object("Matrix", new Matrix(result));
 }
 
 // Helper functions
