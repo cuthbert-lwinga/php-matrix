@@ -88,8 +88,6 @@ $max_val = 0.8;
 $m1 = create_random_matrix($rows, $cols);
 //$m2 = create_random_matrix($rows, $cols);
 
-
-
 $rows = 1000; // Adjust size as needed
 $cols = 1000;
 $min_val = 0.2;
@@ -113,7 +111,6 @@ measure_time(function() use ($m1,$rows,$cols,$min_val,$max_val) {
     $matrix1 = new Matrix();
     $matrix1->random($rows,$cols,$min_val,$max_val);
 }, "Init Time for rand gen ($rows,$cols,$min_val,$max_val)");
-
 
 measure_time(function() use ($matrix1) {
     ($matrix1->shape());
