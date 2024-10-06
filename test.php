@@ -10,8 +10,8 @@ $m2 = array_fill(0, $rows, array_fill(0, $cols, mt_rand() / mt_getrandmax()));
 
 $start_time = microtime(true);
 
-$matrix1 = new MatrixWrapper($m1);
-$matrix2 = new MatrixWrapper($m2);
+$matrix1 = new Matrix($m1);
+$matrix2 = new Matrix($m2);
 
 $end_time = microtime(true);
 $setup_time = $end_time - $start_time;

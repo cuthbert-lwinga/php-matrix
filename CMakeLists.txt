@@ -8,7 +8,7 @@ include_directories(${CMAKE_SOURCE_DIR}/eigen)
 include_directories(${CMAKE_SOURCE_DIR}/ThreadManager)
 
 # Add your source files
-add_executable(MyProject main.cpp matrix.cpp ThreadManager/ThreadManager.cpp)
+add_executable(MyProject extension.cpp matrix.cpp ThreadManager/ThreadManager.cpp)
 
 # Add libraries
 target_link_libraries(MyProject pthread)

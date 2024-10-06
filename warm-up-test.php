@@ -80,16 +80,16 @@ function measure_time($callback, $description) {
 }
 
 // Generate random matrices
-$rows = 100; // Adjust size as needed
-$cols = 100;
+$rows = 10000; // Adjust size as needed
+$cols = 10000;
 $min_val = 0.2;
 $max_val = 0.8;
 
 $m1 = create_random_matrix($rows, $cols);
 //$m2 = create_random_matrix($rows, $cols);
 
-$rows = 1000; // Adjust size as needed
-$cols = 1000;
+$rows = 10000; // Adjust size as needed
+$cols = 10000;
 $min_val = 0.2;
 $max_val = 0.8;
 $scalling = 1.0;

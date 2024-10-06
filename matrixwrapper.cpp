@@ -5,7 +5,7 @@
 #include <vector>
 #include <cmath> 
 #include <functional>
-#include "ThreadManager.h"
+#include "ThreadManager/ThreadManager.h"
 #include <random>
 
 double MatrixWrapper::threadScalingFactor = 1.0;

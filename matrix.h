@@ -3,7 +3,7 @@
 
 #include <phpcpp.h>
 #include "matrixwrapper.h"
-#include "ThreadManager.h"
+#include "ThreadManager/ThreadManager.h"
 
 class Matrix : public Php::Base
 {
