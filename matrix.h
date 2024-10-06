@@ -39,6 +39,7 @@ public:
     Php::Value inverse();
     Php::Value determinant();
     Php::Value eigen();
+    Php::Value selectByIndices(Php::Parameters &params);
 
 
     // Other functions
@@ -73,6 +74,10 @@ public:
     Php::Value std(Php::Parameters &params);
     Php::Value round(Php::Parameters &params);
     static Php::Value glorot_uniform(Php::Parameters &params);
+    static Php::Value oneHotEncoded(Php::Parameters &params);
+    Php::Value slice(Php::Parameters &params);
+
+
 
     Php::Value copy();
 

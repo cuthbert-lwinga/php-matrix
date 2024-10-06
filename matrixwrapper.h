@@ -86,7 +86,9 @@ public:
     MatrixWrapper selectRowsByIndices(const std::vector<int>& indices) const;
     MatrixWrapper mean(int axis = -1, const std::string& dtype = "float64", const Eigen::MatrixXd& where = Eigen::MatrixXd::Constant(0, 0, 0.0)) const;
     MatrixWrapper sign(const Eigen::MatrixXd& where = Eigen::MatrixXd::Constant(0, 0, 1.0)) const;
-    
+    MatrixWrapper selectByIndices(const std::vector<int>& rowIndices, const std::vector<int>& colIndices) const;
+    MatrixWrapper slice(int start, int length, int axis = 1) const;
+
 
     // Operator overloads for +, -, *
     double& operator()(int row, int col) { return data(row, col); }

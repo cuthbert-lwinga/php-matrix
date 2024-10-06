@@ -250,8 +250,8 @@ measure_time(function() use ($matrix1) {
 
 
 measure_time(function() use ($matrix1) {
-    var_dump($matrix1->abs()->sum()->getData()[0][0]);
-}, "get data like");
+    var_dump($matrix1->getRow(0)->getData()[0]);
+}, "get data like var dump data");
 
 measure_time(function() use ($matrix1) {
     ($matrix1->pow(2));//->display());
@@ -608,5 +608,166 @@ measure_time(function() {
     $matrixA->dot($matrixB)->display();
 
 }, "Matrix Random Function Tests");
+
+
+
+measure_time(function() {
+    echo "Testing selectByIndices function:\n\n";
+
+    // Create a sample matrix
+    $matrix = new Matrix([
+        [0.7, 0.1, 0.2],
+        [0.1, 0.5, 0.4],
+        [0.3, 0.4, 0.3],
+        [0.2, 0.2, 0.6]
+    ]);
+
+    echo "Original matrix:\n";
+    $matrix->display();
+    echo "\n";
+
+    // Test case 1: Replicate the y_pred_clipped[range(samples), y_true] behavior
+    $y_true = [0, 1, 2, 1];
+    $samples = count($y_true);
+
+    echo "Test 1 - y_pred_clipped[range(samples), y_true]:\n";
+    echo "y_true: " . implode(', ', $y_true) . "\n";
+    $result1 = $matrix->selectByIndices(range(0, $samples - 1), $y_true);
+    echo "Result:\n";
+    $result1->display();
+    echo "\n";
+
+    // Test case 2: Select specific rows and columns
+    $rowIndices = [0, 2, 3];
+    $colIndices = [1, 2];
+    echo "Test 2 - Select rows [0, 2, 3] and columns [1, 2]:\n";
+    $result2 = $matrix->selectByIndices($rowIndices, $colIndices);
+    $result2->display();
+    echo "\n";
+
+    // Test case 3: Select with out of bounds indices
+    $rowIndices = [0, 4, 2];
+    $colIndices = [1, 5, 2];
+    echo "Test 3 - Select with out of bounds indices:\n";
+    $result3 = $matrix->selectByIndices($rowIndices, $colIndices);
+    $result3->display();
+    echo "\n";
+
+}, "selectByIndices Test");
+
+measure_time(function() {
+    echo "Testing oneHotEncoded method:\n\n";
+
+    // Test case 1: Basic usage
+    $indices = [0, 1, 1, 2];
+    echo "Test 1 - Basic usage (4 rows, indices [0, 1, 1, 2]):\n";
+    $oneHot = Matrix::oneHotEncoded(4, $indices);
+    $oneHot->display();
+    echo "\n";
+
+    // Test case 2: Specifying the number of columns
+    $indices = [0, 2, 1];
+    echo "Test 2 - Specifying columns (3 rows, indices [0, 2, 1], 4 columns):\n";
+    $oneHot = Matrix::oneHotEncoded(3, $indices, 4);
+    $oneHot->display();
+    echo "\n";
+
+    // Test case 3: Handling out-of-range indices
+    $indices = [0, 3, 1, 5];
+    echo "Test 3 - Out-of-range indices (4 rows, indices [0, 3, 1, 5], 4 columns):\n";
+    $oneHot = Matrix::oneHotEncoded(4, $indices, 4);
+    $oneHot->display();
+    echo "\n";
+
+    // Test case 4: Large matrix
+    $num_classes = 1000;
+    $num_samples = 10000;
+    $indices = array_map(function() use ($num_classes) { 
+        return rand(0, $num_classes - 1); 
+    }, range(1, $num_samples));
+    
+    echo "Test 4 - Large matrix ($num_samples rows, $num_classes columns):\n";
+    $start_time = microtime(true);
+    $largeOneHot = Matrix::oneHotEncoded($num_samples, $indices, $num_classes);
+    $end_time = microtime(true);
+    $execution_time = $end_time - $start_time;
+    echo "Execution time for large matrix: $execution_time seconds\n";
+    echo "Shape of large matrix: " . implode("x", $largeOneHot->shape()) . "\n";
+    echo "Sum of all elements (should equal $num_samples): " . $largeOneHot->sum()->getData()[0][0] . "\n\n";
+
+    // Test case 5: Comparing with manual creation
+    echo "Test 5 - Comparing with manual creation:\n";
+    $indices = [1, 0, 2, 1, 3];
+    $num_rows = count($indices);
+    $num_cols = 4;
+
+    $start_time = microtime(true);
+    $oneHotEncoded = Matrix::oneHotEncoded($num_rows, $indices, $num_cols);
+    $end_time = microtime(true);
+    $oneHotEncodedTime = $end_time - $start_time;
+    echo "oneHotEncoded execution time: $oneHotEncodedTime seconds\n";
+
+    $start_time = microtime(true);
+    $manualMatrix = new Matrix(array_fill(0, $num_rows, array_fill(0, $num_cols, 0)));
+    for ($i = 0; $i < $num_rows; $i++) {
+        $manualMatrix->setItem($i, $indices[$i], 1);
+    }
+    $end_time = microtime(true);
+    $manualTime = $end_time - $start_time;
+    echo "Manual creation execution time: $manualTime seconds\n";
+
+    echo "oneHotEncoded result:\n";
+    $oneHotEncoded->display();
+    echo "Manual creation result:\n";
+    $manualMatrix->display();
+
+}, "oneHotEncoded Method Tests");
+
+
+
+measure_time(function() {
+
+    echo "Testing Matrix slice method:\n\n";
+
+    // Create a test matrix
+    $matrix = new Matrix([
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9],
+        [10, 11, 12]
+    ]);
+    
+    echo "Original matrix:\n";
+    $matrix->display();
+    echo "\n";
+    
+    // Test case 1: Slice with start only
+    echo "Test 1 - Slice from index 1 to end:\n";
+    $slice1 = $matrix->slice(0,2);
+    $slice1->display();
+    echo "\n";
+    
+    // Test case 2: Slice with start and length
+    echo "Test 2 - Slice from index 1, length 2:\n";
+    $slice2 = $matrix->slice(1, 2);
+    $slice2->display();
+    echo "\n";
+    
+    // Test case 3: Slice entire matrix
+    echo "Test 3 - Slice entire matrix:\n";
+    $slice3 = $matrix->slice(0,1);
+    $slice3->display();
+    echo "\n";
+    
+    // Test case 4: Slice with length exceeding matrix bounds
+    echo "Test 4 - Slice with length exceeding matrix bounds:\n";
+    $slice4 = $matrix->slice(2, 10);
+    $slice4->display();
+    echo "\n";
+    
+
+},"Testing slice");
+
+
 
 ?>
