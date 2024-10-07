@@ -9,7 +9,7 @@ class MatrixWrapper {
 public:
     Eigen::MatrixXd data;
     static double threadScalingFactor;
-    int threads = 10;
+    int threads = 8;
 
     MatrixWrapper(int rows, int cols, double value = 0.0);
     MatrixWrapper(const std::vector<std::vector<double>> &inputData);

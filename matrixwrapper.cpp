@@ -196,6 +196,7 @@ void dotProductRange(const Eigen::Ref<const Eigen::MatrixXd>& data,
                                 const Eigen::Ref<const Eigen::MatrixXd>& otherData,
                                 Eigen::Ref<Eigen::MatrixXd> resultData,
                                 int startRow, int endRow) {
+        printf("here second \n");
         resultData.block(startRow, 0, endRow - startRow, resultData.cols()) =
             data.block(startRow, 0, endRow - startRow, data.cols()) * otherData;
     }
@@ -207,7 +208,8 @@ MatrixWrapper MatrixWrapper::dot(const MatrixWrapper& other) const {
     }
 
     MatrixWrapper result(data.rows(), other.data.cols());
-    int numThreads = threads;
+    std::cout << "rows " << data.rows() << " and cols " << other.data.cols() << std::endl;
+/*    int numThreads = threads;
     int rowsPerThread = data.rows() / numThreads;
 
     ThreadManager threadManager(threads);
@@ -226,7 +228,10 @@ MatrixWrapper MatrixWrapper::dot(const MatrixWrapper& other) const {
     }
 
     threadManager.waitForCompletion();
-
+*/
+//    return MatrixWrapper(data.array() * other.data.array());
+    result = (*this) * other;
+//    return (*this) * other;
     return result;
 }
 
@@ -341,13 +346,21 @@ MatrixWrapper MatrixWrapper::operator/(double scalar) const {
 }
 
 
-MatrixWrapper MatrixWrapper::operator*(const MatrixWrapper& other) const {
+ MatrixWrapper MatrixWrapper::operator*(const MatrixWrapper& other) const {
     if (data.rows() != other.getRows() || data.cols() != other.getCols()) {
         throw std::invalid_argument("Matrices must have the same dimensions for division.");
     }
     
     return MatrixWrapper(data.array() * other.data.array());
 }
+
+/*MatrixWrapper MatrixWrapper::operator*(const MatrixWrapper& other) const {
+    if (data.rows() != other.getRows() || data.cols() != other.getCols()) {
+        throw std::invalid_argument("Matrices must have the same dimensions for division.");
+    }
+    
+    return MatrixWrapper(data.array() * other.data.array());
+}*/
 
 MatrixWrapper MatrixWrapper::operator*(double scalar) const {
     if (scalar == 0) {
