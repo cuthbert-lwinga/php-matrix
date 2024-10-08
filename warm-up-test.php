@@ -92,8 +92,8 @@ measure_time(function() use ($m1) {
     //$matrix1 = new Matrix($m1);
 }, "Init Time with passed array: This should be avoided for massive matrix it's computationally intensive");
 
-measure_time(function() use ($m1,$rows,$cols,$min_val,$max_val) {
-    $matrix1 = new Matrix();
+measure_time(function() use ($m1,$rows,$cols,$min_val,$max_val, $matrix1) {
+//    $matrix1 = new Matrix();
     $matrix1->random($rows,$cols,$min_val,$max_val);
 }, "Init Time for rand gen ($rows,$cols,$min_val,$max_val)");
 
