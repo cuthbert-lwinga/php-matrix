@@ -1,0 +1,13 @@
+{
+    "name": "cuthbertlwinga/matrix",
+    "description": "Matrix operations",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "cuthbertlwinga",
+            "email": "lwingacuthbert@gmail.com"
+        }
+    ],
+    "require": {}
+}
