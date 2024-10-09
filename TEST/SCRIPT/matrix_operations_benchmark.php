@@ -323,7 +323,4 @@ if ($testPassed) {
     exit(0);  // Exit with success status
 } else {
     echo "Overall Test Result: FAILED\n";
-    exit(1);  // Exit with failure status
-}
-
-?>
+    exit(1);
