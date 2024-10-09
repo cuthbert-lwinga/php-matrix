@@ -1,0 +1,40 @@
+name: PHP Matrix Operations Test
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.1'  # Adjust this to your PHP version
+
+    - name: Validate composer.json and composer.lock
+      run: composer validate --strict
+
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Check for test data file
+      run: |
+        if [ ! -f "DATA/matrix_operations_results.json" ]; then
+          echo "Test data file not found"
+          exit 1
+        fi
+
+    - name: Run Matrix Operations Test
+      run: php SCRIPT/matrix_operations_benchmark.php
+
+    # The script will exit with status 1 if any tests fail, causing the workflow to fail
