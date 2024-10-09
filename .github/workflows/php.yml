@@ -29,12 +29,12 @@ jobs:
 
     - name: Check for test data file
       run: |
-        if [ ! -f "DATA/matrix_operations_results.json" ]; then
+        if [ ! -f "TEST/DATA/matrix_operations_results.json" ]; then
           echo "Test data file not found"
           exit 1
         fi
 
     - name: Run Matrix Operations Test
-      run: php SCRIPT/matrix_operations_benchmark.php
+      run: php TEST/SCRIPT/matrix_operations_benchmark.php
 
     # The script will exit with status 1 if any tests fail, causing the workflow to fail
