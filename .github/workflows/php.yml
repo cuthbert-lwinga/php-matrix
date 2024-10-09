@@ -23,26 +23,6 @@ jobs:
         ini-values: |
           extension=matrix_extension.so
 
-    - name: Install dependencies and build tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y git build-essential cmake php-dev
-
-    - name: Build PHP-CPP
-      run: |
-        git clone https://github.com/CopernicaMarketingSoftware/PHP-CPP.git
-        cd PHP-CPP
-        mkdir build
-        cd build
-        cmake ..
-        make
-        sudo make install
-
-    - name: Build the extension
-      run: |
-        # Compile your C/C++ extension
-        g++ -shared -o matrix_extension.so matrix.o matrixwrapper.o extension.o ThreadManager/ThreadManager.o -lphpcpp -lpthread
-
     - name: Validate composer.json and composer.lock
       run: composer validate --strict
 
@@ -58,8 +38,4 @@ jobs:
 
     - name: Run Matrix Operations Test
       run: php TEST/SCRIPT/matrix_operations_benchmark.php
-
-
-
-
 
