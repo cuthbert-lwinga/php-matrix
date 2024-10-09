@@ -36,6 +36,16 @@ jobs:
           exit 1
         fi
 
+    - name: Check if matrix_extension is loaded
+      run: |
+        if ! php -m | grep -q 'matrix_extension'; then
+          echo "matrix_extension is not loaded"
+          exit 1
+        else
+          echo "matrix_extension is loaded"
+        fi
+
     - name: Run Matrix Operations Test
       run: php TEST/SCRIPT/matrix_operations_benchmark.php
+
 
