@@ -1,10 +1,9 @@
 <?php
-
 ini_set('memory_limit', '4G');
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-echo "current path ".__FILE__;
+// echo "current path ".__FILE__;
 
 // Function to compare float values with tolerance
 function floatEquals($a, $b, $tolerance = 1e-6) {
