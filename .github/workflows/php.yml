@@ -23,6 +23,14 @@ jobs:
         ini-values: |
           extension=matrix_extension.so
 
+    - name: Install build tools
+      run: sudo apt-get install -y gcc make
+
+    - name: Build the extension
+      run: |
+        # Compile your C/C++ extension
+        make
+        
     - name: Validate composer.json and composer.lock
       run: composer validate --strict
 
@@ -39,4 +47,4 @@ jobs:
     - name: Run Matrix Operations Test
       run: php TEST/SCRIPT/matrix_operations_benchmark.php
 
-    # The script will exit with status 1 if any tests fail, causing the workflow to fail
+
