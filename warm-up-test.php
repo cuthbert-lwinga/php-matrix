@@ -150,7 +150,7 @@ measure_time(function() use ($matrix1, $matrix2) {
 
 // Measure matrix-to-scalar division time
 measure_time(function() use ($matrix1) {
-    $matrix1->div(2);
+    $matrix1->div(0.2);
 }, "Matrix-to-Scalar Division Time");
 
 // Measure transpose time
