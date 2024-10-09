@@ -8,12 +8,19 @@
 class Matrix : public Php::Base
 {
 private:
-    MatrixWrapper* matrix;
+    MatrixWrapper matrix;
 
 public:
-    Matrix() {}
-    Matrix(const MatrixWrapper &temp) : matrix(new MatrixWrapper(temp)) {}
-    virtual ~Matrix() { delete matrix; }
+    // Default constructor: create a 1x1 matrix with value 0
+    Matrix() : matrix(1, 1, 0.0) {}
+    
+    // Copy constructor
+    Matrix(const MatrixWrapper &temp) : matrix(temp) {}
+    
+    // Constructor with dimensions
+    Matrix(int rows, int cols) : matrix(rows, cols) {}
+    
+    virtual ~Matrix() {}  
     // static ThreadManager threadManager;
 
     void __construct(Php::Parameters &params);
