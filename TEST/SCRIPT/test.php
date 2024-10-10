@@ -64,14 +64,15 @@ echo str_repeat('-', 40) . "\n";
 // Initialize the Matrix object with the initial matrix
 $initialMatrix = new Matrix($jsonData['initial_matrix']);
 
+
+
 $totalOperations = 0;
 $implementedOperations = 0;
 $passedOperations = 0;
 
 // Get all methods of the Matrix class
 $matrixMethods = get_class_methods('Matrix');
-
-
+var_dump(implode(" ",$matrixMethods));
 foreach ($jsonData as $operation => $data) {
     
     if ($operation === 'initial_matrix' || $operation === 'same_shape_matrix' || $operation === 'add_matrix') {
@@ -86,16 +87,16 @@ foreach ($jsonData as $operation => $data) {
     
     $startTime = microtime(true);
     
-    // Convert operation name to potential method name
-    $methodName = str_replace(['_', ' '], '', $operation);
+    $methodName = $operation;
     
     if($methodName=="multiply"){
-        $methodName="mul";
+        $methodName = "mul";
     }
-
-
+    
     // Check if the method exists
     if (in_array($methodName, $matrixMethods) || in_array($operation, ['add_same_shape', 'add_row', 'subtract_same_shape', 'subtract_row'])) {
+
+        
         try {
             switch ($operation) {
                 case 'add_same_shape':
@@ -113,11 +114,11 @@ foreach ($jsonData as $operation => $data) {
                 case 'dot':
                     $phpResult = $initialMatrix->dot($initialMatrix);
                     break;
-                case 'mul':
+                case 'multiply':
                     $phpResult = $initialMatrix->mul($initialMatrix);
                     break;
                 case 'div':
-                    $phpResult = $initialMatrix->div(new Matrix($jsonData['same_shape_matrix']));
+                    $phpResult = $initialMatrix->div($initialMatrix);
                     break;
                 case 'exp':
                     $phpResult = $initialMatrix->exp();
@@ -133,6 +134,7 @@ foreach ($jsonData as $operation => $data) {
                     break;
                 case 'eigen':
                     $phpResult = $initialMatrix->eigen();
+                    $phpResult[0]->display();
                     break;
                 case 'transpose':
                     $phpResult = $initialMatrix->transpose();
@@ -264,7 +266,8 @@ foreach ($jsonData as $operation => $data) {
                     $phpResult = $initialMatrix->movingAverage(5);
                     break;
                 default:
-                    // $phpResult = $initialMatrix->$methodName();
+                $phpResult = null;
+                echo coloredText("Result: NOT IMPLEMENTED\n", 'orange');
                     break;
             }
             
@@ -306,7 +309,7 @@ foreach ($jsonData as $operation => $data) {
             echo "Error: " . $e->getMessage() . "\n";
         }
     } else {
-        echo coloredText("Result: NOT IMPLEMENTED\n", 'orange');
+        echo coloredText("Result: NOT IMPLEMENTED $operation \n", 'orange');
     }
     
     echo str_repeat('-', 40) . "\n";

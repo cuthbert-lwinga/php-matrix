@@ -580,22 +580,28 @@ MatrixWrapper MatrixWrapper::multiply(const MatrixWrapper &other) const {
 }
 
 MatrixWrapper MatrixWrapper::multiplyElementwise(const MatrixWrapper &other) const {
-    if (data.rows() != other.data.rows() && data.cols() != other.data.cols() && other.data.cols() != 1) {
-        throw std::invalid_argument("Matrix dimensions must agree for element-wise multiplication or allow for broadcasting.");
+    if (data.rows() != other.data.rows() && data.cols() != other.data.cols() &&
+        !(other.data.rows() == 1 || other.data.cols() == 1)) {
+        throw std::invalid_argument("Matrix dimensions must agree for element-wise multiplication or allow for broadcasting (one dimension must be 1).");
     }
     
     MatrixWrapper result(data.rows(), data.cols());
     
-    if (other.data.cols() == 1) {
-        // Broadcasting case
+    if (other.data.rows() == 1 && other.data.cols() == data.cols()) {
+        // Broadcasting row vector
         for (int i = 0; i < data.rows(); ++i) {
-            for (int j = 0; j < data.cols(); ++j) {
-                result.data(i, j) = data(i, j) * other.data(i, 0);
-            }
+            result.data.row(i) = data.row(i).cwiseProduct(other.data.row(0));
         }
-    } else {
+    } else if (other.data.cols() == 1 && other.data.rows() == data.rows()) {
+        // Broadcasting column vector
+        for (int j = 0; j < data.cols(); ++j) {
+            result.data.col(j) = data.col(j).cwiseProduct(other.data.col(0));
+        }
+    } else if (data.rows() == other.data.rows() && data.cols() == other.data.cols()) {
         // Standard element-wise multiplication
-        result.data = data.array() * other.data.array();
+        result.data = data.cwiseProduct(other.data);
+    } else {
+        throw std::invalid_argument("Invalid dimensions for element-wise multiplication or broadcasting.");
     }
     
     return result;

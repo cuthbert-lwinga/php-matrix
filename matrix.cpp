@@ -174,7 +174,7 @@ Php::Value Matrix::log()
 
 Php::Value Matrix::exp(Php::Parameters &params)
 {
-    double base = params.size() > 0 ? params[0].numericValue() : std::exp(1.0); // Default base is e
+    double base = params.size() > 0 ? params[0].floatValue() : std::exp(1.0); // Default base is e
     MatrixWrapper result = matrix.exp(base);
     return Php::Object("Matrix", new Matrix(result));
 }
@@ -229,7 +229,7 @@ Php::Value Matrix::dot(Php::Parameters &params)
             MatrixWrapper result = matrix.dot(other->matrix);
             return Php::Object("Matrix", new Matrix(result));
         } else {
-            double scalar = params[0].numericValue();
+            double scalar = params[0].floatValue();
             MatrixWrapper result = matrix * scalar;
             return Php::Object("Matrix", new Matrix(result));
         } 
@@ -551,7 +551,7 @@ Php::Value Matrix::pow(Php::Parameters &params) {
         MatrixWrapper result = matrix.pow(exponent->matrix);
         return Php::Object("Matrix", new Matrix(result));
     } else if (params.size() == 1 && params[0].isNumeric()) {
-        double exponent = params[0].numericValue();
+        double exponent = params[0].floatValue();
         MatrixWrapper result = matrix.pow(exponent);
         return Php::Object("Matrix", new Matrix(result));
     } else {
