@@ -163,6 +163,14 @@ measure_time(function() use ($matrix1) {
     $matrix1->mul(2);
 }, "Multiplication Time");
 
+
+// Measure Multiplication time
+measure_time(function() use ($matrix1) {
+    $matrix1 = new Matrix([[0.03908835506490137,0.002,0.003],[0.004,0.005,0.006],[0.007,0.008,0.009]]);
+    $matrix2 = new Matrix([[0.03908835506490137,0.002,0.003],[0.004,0.005,0.006],[0.007,0.008,0.009]]);
+    $matrix1->mul($matrix2)->display();
+}, "Multiplication of matrix");
+
 // Measure argmax time
 measure_time(function() use ($matrix1) {
     $matrix1->argmax();
