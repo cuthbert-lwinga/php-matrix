@@ -7,3 +7,4 @@ Eigen.zip
 Eigen/
 Makefile.old
 cmake_install.cmake
+/vendor/
