@@ -182,6 +182,25 @@ PHPCPP_EXPORT void *get_module() {
         Php::ByVal("initial", Php::Type::Float, true),
         Php::ByVal("where", Php::Type::Array, true)
     });
+
+    Matrix.method<&Matrix::selectByIndices>("selectByIndices", {
+        Php::ByVal("rowIndices", Php::Type::Array),
+        Php::ByVal("colIndices", Php::Type::Array)
+    });
+    
+
+    Matrix.method<&Matrix::oneHotEncoded>("oneHotEncoded", Php::Static, {
+        Php::ByVal("numRows", Php::Type::Numeric),
+        Php::ByVal("indices", Php::Type::Array),
+        Php::ByVal("numCols", Php::Type::Numeric, false)
+    });
+
+    Matrix.method<&Matrix::slice>("slice", {
+    Php::ByVal("start", Php::Type::Numeric),
+    Php::ByVal("length", Php::Type::Numeric),
+    Php::ByVal("axis", Php::Type::Numeric, false)
+});
+
     
     extension.add(std::move(Matrix));
 

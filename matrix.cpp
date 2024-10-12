@@ -369,6 +369,25 @@ Php::Value Matrix::shape(){
     return array;
 }
 
+Php::Value Matrix::selectByIndices(Php::Parameters &params) {
+    if (params.size() != 2 || !params[0].isArray() || !params[1].isArray()) {
+        throw Php::Exception("selectByIndices expects two array parameters");
+    }
+
+    std::vector<int> rowIndices;
+    std::vector<int> colIndices;
+
+    for (const auto& value : params[0]) {
+        rowIndices.push_back(value.second.numericValue());
+    }
+
+    for (const auto& value : params[1]) {
+        colIndices.push_back(value.second.numericValue());
+    }
+
+    MatrixWrapper result = matrix->selectByIndices(rowIndices, colIndices);
+    return Php::Object("Matrix", new Matrix(result));
+}
 
 Php::Value Matrix::random(Php::Parameters &params) {
     int rows = params[0].numericValue();
@@ -693,6 +712,40 @@ Php::Value Matrix::copy()
     return Php::Object("Matrix", newMatrix);
 }
 
+
+Php::Value Matrix::oneHotEncoded(Php::Parameters &params) {
+    if (params.size() < 2) {
+        throw Php::Exception("oneHotEncoded requires at least two parameters: numRows and indices");
+    }
+
+    int numRows = params[0];
+    Php::Value indices = params[1];
+    
+    // Manually find the maximum index
+    int maxIndex = -1;
+    for (const auto &index : indices) {
+        int currentIndex = index.second.numericValue();
+        if (currentIndex > maxIndex) {
+            maxIndex = currentIndex;
+        }
+    }
+
+    int numCols = params.size() > 2 ? params[2].numericValue() : maxIndex + 1;
+
+    MatrixWrapper result(numRows, numCols, 0.0);
+
+    int row = 0;
+    for (const auto &index : indices) {
+        int col = index.second.numericValue();
+        if (col >= 0 && col < numCols) {
+            result.setItem(row, col, 1.0);
+        }
+        row++;
+    }
+
+    return Php::Object("Matrix", new Matrix(result));
+}
+
 Php::Value Matrix::max(Php::Parameters &params)
 {
     int axis = -1;
@@ -727,6 +780,23 @@ Php::Value Matrix::glorot_uniform(Php::Parameters &params)
 
     MatrixWrapper result = MatrixWrapper::glorot_uniform(fan_in, fan_out);
     return Php::Object("Matrix", new Matrix(result));
+}
+
+Php::Value Matrix::slice(Php::Parameters &params) {
+    if (params.size() < 2) {
+        throw Php::Exception("Slice requires at least start and length parameters");
+    }
+
+    int start = params[0].numericValue();
+    int length = params[1].numericValue();
+    int axis = params.size() > 2 ? params[2].numericValue() : 0;
+
+    try {
+        MatrixWrapper result = matrix->slice(start, length, axis);
+        return Php::Object("Matrix", new Matrix(result));
+    } catch (const std::invalid_argument& e) {
+        throw Php::Exception(e.what());
+    }
 }
 
 // Helper functions

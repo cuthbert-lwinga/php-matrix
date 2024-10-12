@@ -303,6 +303,70 @@ MatrixWrapper MatrixWrapper::dot(const MatrixWrapper& other) const {
     return result;
 }
 
+MatrixWrapper MatrixWrapper::selectByIndices(const std::vector<int>& rowIndices, const std::vector<int>& colIndices) const {
+    int numRows = rowIndices.size();
+    int numCols = (colIndices.size() == numRows) ? 1 : colIndices.size();
+    MatrixWrapper result(numRows, numCols);
+
+    for (int i = 0; i < numRows; ++i) {
+        int rowIdx = rowIndices[i];
+        int colIdx = (colIndices.size() == numRows) ? colIndices[i] : 0;
+        
+        if (rowIdx >= 0 && rowIdx < data.rows() && colIdx >= 0 && colIdx < data.cols()) {
+            if (numCols == 1) {
+                result.data(i, 0) = data(rowIdx, colIdx);
+            } else {
+                for (int j = 0; j < numCols; ++j) {
+                    colIdx = colIndices[j];
+                    if (colIdx >= 0 && colIdx < data.cols()) {
+                        result.data(i, j) = data(rowIdx, colIdx);
+                    } else {
+                        result.data(i, j) = std::numeric_limits<double>::quiet_NaN();
+                    }
+                }
+            }
+        } else {
+            if (numCols == 1) {
+                result.data(i, 0) = std::numeric_limits<double>::quiet_NaN();
+            } else {
+                result.data.row(i).setConstant(std::numeric_limits<double>::quiet_NaN());
+            }
+        }
+    }
+
+    return result;
+}
+
+MatrixWrapper MatrixWrapper::slice(int start, int length, int axis) const {
+    if (axis != 0 && axis != 1) {
+        throw std::invalid_argument("Axis must be 0 (rows) or 1 (columns)");
+    }
+
+    int maxSize = (axis == 0) ? data.rows() : data.cols();
+    
+    // Handle negative start index
+    if (start < 0) start = maxSize + start;
+    
+    // Ensure start is within bounds
+    start = std::max(0, std::min(start, maxSize - 1));
+    
+    // Adjust length if it goes beyond the matrix size
+    length = std::min(length, maxSize - start);
+
+    if (length <= 0) {
+        throw std::invalid_argument("Resulting slice has no elements");
+    }
+
+    if (axis == 0) {
+        // Slice rows
+        return MatrixWrapper(data.block(start, 0, length, data.cols()));
+    } else {
+        // Slice columns
+        return MatrixWrapper(data.block(0, start, data.rows(), length));
+    }
+}
+
+
 // Matrix Matrix::dot(const Matrix& other) const {
 //     if (data.cols() != other.data.rows()) {
 //         throw std::invalid_argument("Matrix dimensions must be compatible for dot product");
