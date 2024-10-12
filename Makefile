@@ -1,11 +1,20 @@
 EXTENSION_NAME=matrix_extension
 PHP_CONFIG=$(shell which php-config)
-PHPCPP_DIR=/usr/include
+
+#PHPCPP_DIR=$(shell $(PHP_CONFIG) --includes | sed 's/-I/-I\/usr\/include\/phpcpp /g')
+
+#PHPCPP_LIB=/usr/local/lib
+
+#PHP_EXTENSION_DIR=$(shell $(PHP_CONFIG) --extension-dir)
+
+#EIGEN_DIR=./eigen
+PHPCPP_DIR=/usr/include/phpcpp
 PHPCPP_LIB=/usr/lib
 PHP_EXTENSION_DIR=$(shell $(PHP_CONFIG) --extension-dir)
 EIGEN_DIR=./Eigen
 PHP_CONFIG_DIR=/etc/php/8.1/cli/conf.d/
 PHPINIFILE=30-phpmatrix.ini
+THREAD_MANAGER_DIR=./ThreadManager
 
 CXX=g++
 CXXFLAGS=-O3 -Wall -c -std=c++14 -fpic `$(PHP_CONFIG) --includes` -I$(PHPCPP_DIR) -I$(EIGEN_DIR) -I./ThreadManager

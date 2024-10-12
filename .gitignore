@@ -8,3 +8,12 @@ Eigen/
 Makefile.old
 cmake_install.cmake
 /vendor/
+*.o
+./*/*.o
+*.so
+30-phpmatrix.ini
+CMakeCache.txt
+Eigen.zip
+Eigen/
+Makefile.old
+cmake_install.cmake
