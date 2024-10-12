@@ -76,6 +76,7 @@ $scalling = 1;
 $m1 = create_random_matrix(20, 20);
 $m2 = [];//$m1;//create_random_matrix($rows, $cols);
 
+
 Matrix::setThreadScalingFactor($scalling);
 
 echo " MATRIX($rows,$cols) scalling: $scalling\n\n";
