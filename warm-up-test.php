@@ -777,6 +777,144 @@ measure_time(function() {
 
 },"Testing slice");
 
+measure_time(function() {
 
+    echo "\n\nTesting Matrix circulant method:\n\n";
+
+    // Create a test matrix
+    $matrix = new Matrix([
+        [6, 3, 4, 1],
+        [1, 2, 3, 2],
+        [4, 5, 6, 3],
+        [7, 8, 9, 4],
+        [10, 11, 12, 5]
+    ]);
+
+
+//    $m = create_random_matrix(5, 5);
+//    $matrix = new Matrix($m);
+    echo "Original matrix:\n";
+    $matrix->display();
+    echo "\n";
+    
+    // Test case 1: Circulant from rows[0]
+    echo "Test 1 - Generate Circulant from first row:\n";
+    $circulant_row = $matrix->circulant(0);
+    $circulant_row->display();
+    echo "\n";
+    
+    // Test case 2: Circulant from cols[0]
+    echo "Test 2 - Generate Circulant from first col:\n";
+    $circulant_col = $matrix->circulant(1);
+    $circulant_col->display();
+    echo "\n";
+
+    // Test case 3: Check if original matrix is circulant
+    echo "Test 3 - Check if original matrix is circulant:\n";
+    $check = $matrix->isCirculant();
+    echo "Matrix is circulant: " . ($check ? "Yes" : "No") . "\n";
+
+   // Test case 4: Check if matrix is circulant
+   echo "Test 4 - Check if original matrix is circulant:\n";
+   $check_row = $circulant_row->isCirculant();
+   echo "Matrix is circulant: " . ($check_row ? "Yes" : "No") . "\n";    
+
+   // Test case 5: Check if matrix is circulant
+   echo "Test 5 - Check if original matrix is circulant:\n";
+   $check_col = $circulant_row->isCirculant();
+   echo "Matrix is circulant: " . ($check_row ? "Yes" : "No") . "\n";    
+
+},"Testing circulant");
+
+measure_time(function() {
+
+    echo "\n\nTesting Matrix decomposition methods:\n\n";
+
+    // Create a test matrix
+    $matrix = new Matrix([
+        [6, 3, 4, 1],
+        [1, 2, 3, 2],
+        [4, 5, 6, 3],
+        [7, 8, 9, 4],
+        [10, 11, 12, 5]
+    ]);
+
+
+//    $m = create_random_matrix(5, 5);
+//    $matrix = new Matrix($m);
+    echo "Original matrix:\n";
+    $matrix->display();
+    echo "\n";
+    
+    // Test case 1: LU decomposition
+    echo "Test 1 - Performing LU decomposion:\n";
+    $LU = $matrix->luDecomposition();
+    echo "\nL matrix:\n";
+    $LU[0]->display();
+    echo "\nU matrix:\n";
+    $LU[1]->display();
+    echo "\n";
+
+    // Test case 2: SVD decomposition
+    echo "Test 2 - Performing SVD decomposion:\n";
+    $SVD = $matrix->svdDecomposition();
+    echo "\nU matrix:\n";
+    $SVD[0]->display();
+    echo "\nS matrix:\n";
+    $SVD[1]->display();
+    echo "\nV matrix:\n";
+    $SVD[2]->display();
+    echo "\n";
+    
+    // Test case 3: LU decomposition
+    echo "Test 3 - Performing LU decomposion through general decomposition method:\n";
+    $decompose_lu = $matrix->decompose("LU");
+    echo "\nL matrix:\n";
+    $decompose_lu[0]->display();
+    echo "\nU matrix:\n";
+    $decompose_lu[1]->display();
+    echo "\n";
+    
+    // Test case 4: SVD decomposition
+    echo "Test 4 - Performing SVD decomposion through general decomposition method:\n";
+    $decompose_svd = $matrix->decompose("SVD");
+    echo "\nU matrix:\n";
+    $decompose_svd[0]->display();
+    echo "\nS matrix:\n";
+    $decompose_svd[1]->display();
+    echo "\nV matrix:\n";
+    $decompose_svd[2]->display();
+    echo "\n";
+    
+},"Testing matrix decompositions");
+
+measure_time(function() {
+
+    echo "\n\nTesting Matrix decomposition methods:\n\n";
+
+    // Create a test matrix
+    $matrix = new Matrix([
+        [6, 3, 4, 1],
+        [1, 2, 3, 2],
+        [4, 5, 6, 3],
+        [7, 8, 9, 4],
+        [10, 11, 12, 5]
+    ]);
+
+
+//    $m = create_random_matrix(5, 5);
+//    $matrix = new Matrix($m);
+    echo "Original matrix:\n";
+    $matrix->display();
+    echo "\n";
+    
+    // Test case 1: LU decomposition
+    echo "Test 1 - Performing LU decomposion:\n";
+    $X = $matrix->lyapunov_solver($matrix);
+    echo "\nL matrix:\n";
+    $X->display();
+    echo "\n";
+
+},"Testing matrix Lyapunov");
 
 ?>

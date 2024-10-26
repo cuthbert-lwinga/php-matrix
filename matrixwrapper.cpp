@@ -3,6 +3,7 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#include <map>
 #include <cmath> 
 #include <functional>
 #include "ThreadManager/ThreadManager.h"
@@ -12,6 +13,21 @@ double MatrixWrapper::threadScalingFactor = 1.0;
 
 int calculateThreadsBasedOnMatrixSize(int rows, int cols, double scalingFactor, int maxThreads);
 
+MatrixWrapper::MatrixWrapper() : data(0, 0) {}  // Initialize to an empty 0x0 matrix
+
+MatrixWrapper::MatrixWrapper(const MatrixWrapper& other) : data(other.data) {
+
+    threads = calculateThreadsBasedOnMatrixSize(other.data.rows(), other.data.cols(), MatrixWrapper::threadScalingFactor,2500);
+    Eigen::setNbThreads(threads);
+ 
+}
+
+MatrixWrapper::MatrixWrapper(MatrixWrapper&& other) noexcept : data(std::move(other.data)) {
+
+    threads = calculateThreadsBasedOnMatrixSize(other.data.rows(), other.data.cols(), MatrixWrapper::threadScalingFactor,2500);
+    Eigen::setNbThreads(threads);
+
+}
 
 MatrixWrapper::MatrixWrapper(int rows, int cols, double value) : data(rows, cols) {
 
@@ -269,15 +285,13 @@ void dotProductRange(const Eigen::Ref<const Eigen::MatrixXd>& data,
             data.block(startRow, 0, endRow - startRow, data.cols()) * otherData;
     }
 
-
 MatrixWrapper MatrixWrapper::dot(const MatrixWrapper& other) const {
     if (data.cols() != other.data.rows()) {
         throw std::invalid_argument("Matrix dimensions must be compatible for dot product");
     }
 
     MatrixWrapper result(data.rows(), other.data.cols());
-    std::cout << "rows " << data.rows() << " and cols " << other.data.cols() << std::endl;
-/*    int numThreads = threads;
+    int numThreads = threads;
     int rowsPerThread = data.rows() / numThreads;
 
     ThreadManager threadManager(threads);
@@ -296,10 +310,7 @@ MatrixWrapper MatrixWrapper::dot(const MatrixWrapper& other) const {
     }
 
     threadManager.waitForCompletion();
-*/
-//    return MatrixWrapper(data.array() * other.data.array());
-    result = (*this) * other;
-//    return (*this) * other;
+
     return result;
 }
 
@@ -366,6 +377,143 @@ MatrixWrapper MatrixWrapper::slice(int start, int length, int axis) const {
     }
 }
 
+MatrixWrapper MatrixWrapper::circulant(int axis){
+    // Get the number of rows and columns
+    Eigen::VectorXd vec;
+
+    // Check if we use the first row or the first column to construct the circulant matrix
+    if (axis == 0) {
+        // Use the first row
+        vec = data.row(0);
+    } else if (axis == 1) {
+        // Use the first column
+        vec = data.col(0);
+    } else {
+        throw std::invalid_argument("Axis must be 0 (row) or 1 (column)");
+    }
+
+    // Lambda function to compute the circulant matrix
+    auto circulant_lambda = [&vec](Eigen::Index row, Eigen::Index col) -> double {
+        Eigen::Index index = row - col;
+        if (index < 0) index += vec.size();
+        return vec(index);
+    };
+    // Create the circulant matrix using NullaryExpr
+    Eigen::MatrixXd matrix = Eigen::MatrixXd::NullaryExpr(vec.size(), vec.size(), circulant_lambda);
+
+    // return the circulant matrix
+    return MatrixWrapper(matrix);
+}
+
+// Method to check if the matrix is circulant (using the first row)
+bool MatrixWrapper::isCirculant() const {
+    int rows = data.rows();
+    int cols = data.cols();
+    // A circulant matrix must be square
+    if (rows != cols) {
+        return false;
+    }
+    bool circulant = true;
+    // Check if each row is a cyclic shift of the first row
+    #pragma omp parallel for
+    for (int i = 1; i < rows; ++i) {
+        for (int j = 0; j < cols; ++j) {
+            Eigen::Index index = (j - i + cols) % cols;
+            if (data(i, j) != data(0, index)) {
+                circulant = false;  // Mark non-circulant
+                break;
+            }
+        }
+    }
+    return circulant;
+}
+
+// LU decomposition method
+std::map<std::string, MatrixWrapper> MatrixWrapper::luDecomposition() const {
+    
+    // Perform LU decomposition using Eigen's FullPivLU class
+    Eigen::FullPivLU<Eigen::MatrixXd> lu(data);
+    int rows = data.rows(), cols = data.cols();
+    Eigen::MatrixXd L = Eigen::MatrixXd::Identity(rows, cols);
+
+    // Extract L (lower triangular) and U (upper triangular) matrices
+    //Eigen::MatrixXd L = lu.matrixLU().triangularView<Eigen::StrictlyLower>();
+    L.triangularView<Eigen::StrictlyLower>() = lu.matrixLU();
+    Eigen::MatrixXd U = lu.matrixLU().triangularView<Eigen::Upper>();
+
+    // Wrap L and U into MatrixWrapper objects and return them in a map
+    std::map<std::string, MatrixWrapper> result;
+    result["L"] = MatrixWrapper(L);
+    result["U"] = MatrixWrapper(U);
+
+    // Return result
+    return result;    
+}
+
+std::map<std::string, MatrixWrapper> MatrixWrapper::svdDecomposition() const {
+    // Perform SVD using Eigen's JacobiSVD class
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd(data, Eigen::ComputeThinU | Eigen::ComputeThinV);
+
+    // Extract U, S (as a diagonal matrix), and V matrices
+    Eigen::MatrixXd U = svd.matrixU();
+    Eigen::MatrixXd S = svd.singularValues().asDiagonal();
+    Eigen::MatrixXd V = svd.matrixV();
+
+    // Wrap U, S, and V into MatrixWrapper objects and return them in a map
+    std::map<std::string, MatrixWrapper> result;
+    result["U"] = MatrixWrapper(U);
+    result["S"] = MatrixWrapper(S);
+    result["V"] = MatrixWrapper(V);
+
+    // Return result
+    return result;
+}
+
+// Function to solve the Lyapunov equation: A * X + X * A^T = -Q using the Bartels-Stewart algorithm
+MatrixWrapper MatrixWrapper::lyapunov_solver(const MatrixWrapper& Q) const {
+// Ensure A and Q are square matrices of the same size
+    assert(this->data.rows() == this->data.cols() && Q.data.rows() == Q.data.cols() && this->data.rows() == Q.data.rows());
+
+    int n = this->data.rows();
+
+    // Step 1: Compute the Schur decomposition of A
+    Eigen::RealSchur<Eigen::MatrixXd> schur(this->data);
+    Eigen::MatrixXd U = schur.matrixU();   // Orthogonal matrix
+    Eigen::MatrixXd T = schur.matrixT();   // Triangular matrix
+
+    // Step 2: Transform Q into the Schur basis (U^T * Q * U)
+    Eigen::MatrixXd Q_transformed = U.transpose() * Q.data * U;
+
+    // Step 3: Solve the triangular system T * X + X * T^T = -Q_transformed
+    Eigen::MatrixXd X_transformed = Eigen::MatrixXd::Zero(n, n);
+    // Parallelize the loop for better performance using OpenMP
+    #pragma omp parallel for collapse(2) schedule(dynamic)
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j <= i; ++j) {
+            double sum = Q_transformed(i, j);
+            for (int k = j + 1; k <= i; ++k) {
+                sum -= T(i, k) * X_transformed(k, j) + X_transformed(i, k) * T(j, k);
+            }
+            X_transformed(i, j) = sum / (T(i, i) + T(j, j));
+        }
+    }
+
+    // Step 4: Transform X back to the original basis (U * X_transformed * U^T)
+    Eigen::MatrixXd X = U * X_transformed * U.transpose();
+
+    return MatrixWrapper(X);
+}
+
+// General decomposition method that takes a string to select between LU and SVD
+std::map<std::string, MatrixWrapper> MatrixWrapper::decompose(const std::string& method) const{
+    if (method == "LU") {
+        return luDecomposition();
+    } else if (method == "SVD") {
+        return svdDecomposition();
+    } else {
+        throw std::invalid_argument("Unsupported decomposition method: " + method);
+    }
+}
 
 // Matrix Matrix::dot(const Matrix& other) const {
 //     if (data.cols() != other.data.rows()) {
@@ -530,6 +678,14 @@ MatrixWrapper MatrixWrapper::operator*(double scalar) const {
     return MatrixWrapper(data.array() * scalar);
 
 }
+
+// Copy assignment operator
+MatrixWrapper& MatrixWrapper::operator=(const MatrixWrapper& other) {
+        if (this != &other) {
+            data = other.data;  // Copy the matrix data
+        }
+        return *this;
+    }
 
 MatrixWrapper MatrixWrapper::random(int rows, int cols, double min, double max) {
     std::random_device rd;

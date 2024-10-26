@@ -199,8 +199,25 @@ PHPCPP_EXPORT void *get_module() {
     Php::ByVal("start", Php::Type::Numeric),
     Php::ByVal("length", Php::Type::Numeric),
     Php::ByVal("axis", Php::Type::Numeric, false)
-});
+    });
 
+    Matrix.method<&Matrix::circulant>("circulant", {
+        Php::ByVal("axis", Php::Type::Numeric)
+    });
+
+    Matrix.method<&Matrix::isCirculant>("isCirculant");
+
+    Matrix.method<&Matrix::luDecomposition>("luDecomposition");
+
+    Matrix.method<&Matrix::svdDecomposition>("svdDecomposition");
+
+    Matrix.method<&Matrix::decompose>("decompose", {
+        Php::ByVal("method", Php::Type::String)
+    });
+    
+    Matrix.method<&Matrix::lyapunov_solver>("lyapunov_solver", {
+        Php::ByVal("X", Php::Type::Object)
+    });
     
     extension.add(std::move(Matrix));
 

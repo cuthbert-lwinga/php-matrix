@@ -2,7 +2,9 @@
 #define MATRIXWRAPPER_H
 
 #include <Eigen/Dense>
+//#include <Eigen/KroneckerProduct> // For Kronecker product
 #include <vector>
+#include <map>
 
 class MatrixWrapper {
 
@@ -11,10 +13,17 @@ public:
     static double threadScalingFactor;
     int threads = 8;
 
+    // Default constructor (needed by std::map and other containers)
+    MatrixWrapper();
+    // Copy constructor (needed by std::map and other containers)
+    MatrixWrapper(const MatrixWrapper& other);
+    // Move constructor
+    MatrixWrapper(MatrixWrapper&& other) noexcept;
     MatrixWrapper(int rows, int cols, double value = 0.0);
     MatrixWrapper(const std::vector<std::vector<double>> &inputData);
     MatrixWrapper(const Eigen::MatrixXd& other);
-
+    // Destructor
+    ~MatrixWrapper() = default;
     static MatrixWrapper glorot_uniform(int fan_in, int fan_out);
 
     // Static method to set the thread scaling factor
@@ -88,7 +97,12 @@ public:
     MatrixWrapper sign(const Eigen::MatrixXd& where = Eigen::MatrixXd::Constant(0, 0, 1.0)) const;
     MatrixWrapper selectByIndices(const std::vector<int>& rowIndices, const std::vector<int>& colIndices) const;
     MatrixWrapper slice(int start, int length, int axis = 1) const;
-
+    MatrixWrapper circulant(int axis=0);
+    bool isCirculant() const;
+    std::map<std::string, MatrixWrapper> luDecomposition() const;
+    std::map<std::string, MatrixWrapper> svdDecomposition() const;
+    std::map<std::string, MatrixWrapper> decompose(const std::string& method) const;
+    MatrixWrapper lyapunov_solver(const MatrixWrapper& Q) const;
 
     // Operator overloads for +, -, *
     double& operator()(int row, int col) { return data(row, col); }
@@ -106,6 +120,8 @@ public:
     // Inside the Matrix class definition
     MatrixWrapper operator/(const MatrixWrapper& other) const;
     MatrixWrapper operator/(double scalar) const;
+    // Copy assignment operator
+    MatrixWrapper& operator=(const MatrixWrapper& other);
 
 
     void display() const;

@@ -732,6 +732,148 @@ Php::Value Matrix::slice(Php::Parameters &params) {
     }
 }
 
+// Method to generate a circulant matrix from a given axis parameter
+// Axis 0: Generate circulant matrix using the first row
+// Axis 1: Generate circulant matrix using the first column
+Php::Value Matrix::circulant(Php::Parameters &params) {
+    // Validate and retrieve axis parameter
+    int axis = params[0].numericValue();
+
+    try {
+        // Generate the circulant matrix based on the axis
+        MatrixWrapper result = matrix.circulant(axis);
+
+        // Return the result as a new Matrix object (wrapping the result)
+        return Php::Object("Matrix", new Matrix(result));
+    } 
+    catch (const std::invalid_argument& exception) {
+        // Catch and re-throw with a PHP exception if the axis is invalid
+        throw Php::Exception("Invalid axis value: " + std::string(exception.what()));
+    } 
+    catch (...) {
+        // Catch any other exceptions and re-throw as a generic PHP exception
+        throw Php::Exception("An unknown error occurred while generating the circulant matrix.");
+    }
+}
+
+// Method to check if the matrix is circulant
+// Returns a boolean (true or false) indicating whether the matrix is circulant
+Php::Value Matrix::isCirculant() const {
+    // Call the internal MatrixWrapper method to check if the matrix is circulant
+    bool result = matrix.isCirculant();
+
+    // Return the result as a PHP boolean value
+    return Php::Value(result);
+}
+
+// Perform LU decomposition on the matrix and return an array of L and U matrices to PHP.
+Php::Value Matrix::luDecomposition() const {
+    // Call the LU decomposition method on the matrix object.
+    auto result = matrix.luDecomposition();
+
+    // Create a PHP array to store the L and U matrices.
+    Php::Array LU_Array;
+
+    // Use .at() for safe access without unnecessary lookups or insertion.
+    try {
+        LU_Array[0] = Php::Object("Matrix", new Matrix(result.at("L")));  // Get "L" matrix
+        LU_Array[1] = Php::Object("Matrix", new Matrix(result.at("U")));  // Get "U" matrix
+    } catch (const std::out_of_range& e) {
+        // If the keys "L" or "U" are missing, throw an exception to PHP.
+        throw Php::Exception("LU decomposition failed: Missing L or U matrix.");
+    }
+
+    // Return the array containing the L and U matrices to the PHP side.
+    return LU_Array;
+}
+
+// Perform Singular Value Decomposition (SVD) on the matrix and return an array of U, S, and V matrices to PHP.
+Php::Value Matrix::svdDecomposition() const {
+    // Call the SVD decomposition method on the matrix object.
+    auto result = matrix.svdDecomposition();
+
+    // Create a PHP array to store the U, S, and V matrices.
+    Php::Array SVD_Array;
+
+    // Use .at() for safe access without unnecessary lookups or insertion.
+    try {
+        SVD_Array[0] = Php::Object("Matrix", new Matrix(result.at("U")));  // Get "U" matrix
+        SVD_Array[1] = Php::Object("Matrix", new Matrix(result.at("S")));  // Get "S" matrix (diagonal of singular values)
+        SVD_Array[2] = Php::Object("Matrix", new Matrix(result.at("V")));  // Get "V" matrix
+    } catch (const std::out_of_range& e) {
+        // If the keys "U", "S", or "V" are missing, throw an exception to PHP.
+        throw Php::Exception("SVD decomposition failed: Missing U, S, or V matrix.");
+    }
+
+    // Return the array containing the U, S, and V matrices to the PHP side.
+    return SVD_Array;
+}
+
+// Perform a matrix decomposition based on the method specified (LU or SVD).
+// Returns the decomposed matrices (e.g., L and U for LU, U, S, and V for SVD) as a PHP array.
+Php::Value Matrix::decompose(Php::Parameters &params) const {
+    // Extract the decomposition method (LU, SVD, etc.) from the first parameter.
+    auto method = params[0].stringValue();
+
+    // Perform the decomposition using the specified method (LU or SVD).
+    // This assumes that matrix.decompose() internally calls luDecomposition() or svdDecomposition() based on the method.
+    auto result = matrix.decompose(method);
+
+    // Create a PHP array to store the resulting decomposed matrices.
+    Php::Array resultArray;
+
+    // Handle the result based on the decomposition method.
+    if (method == "LU") {
+        // For LU decomposition, we expect "L" and "U" matrices.
+        try {
+            resultArray[0] = Php::Object("Matrix", new Matrix(result.at("L")));  // L matrix
+            resultArray[1] = Php::Object("Matrix", new Matrix(result.at("U")));  // U matrix
+        } catch (const std::out_of_range& e) {
+            // If "L" or "U" matrix is missing, throw an exception to PHP.
+            throw Php::Exception("LU decomposition failed: Missing L or U matrix.");
+        }
+    } else if (method == "SVD") {
+        // For SVD decomposition, we expect "U", "S", and "V" matrices.
+        try {
+            resultArray[0] = Php::Object("Matrix", new Matrix(result.at("U")));  // U matrix
+            resultArray[1] = Php::Object("Matrix", new Matrix(result.at("S")));  // S matrix (singular values)
+            resultArray[2] = Php::Object("Matrix", new Matrix(result.at("V")));  // V matrix
+        } catch (const std::out_of_range& e) {
+            // If "U", "S", or "V" matrix is missing, throw an exception to PHP.
+            throw Php::Exception("SVD decomposition failed: Missing U, S, or V matrix.");
+        }
+    } else {
+        // If an unsupported decomposition method is specified, throw an exception.
+        throw Php::Exception("Unsupported decomposition method: " + method);
+    }
+
+    // Return the array containing the decomposed matrices to the PHP side.
+    return resultArray;
+}
+
+Php::Value Matrix::lyapunov_solver(Php::Parameters &params) const {
+    // Check if exactly one parameter is passed
+    if (params.size() == 1) {
+        // Verify the parameter is an object and specifically an instance of "Matrix"
+        if (params[0].isObject() && params[0].instanceOf("Matrix")) {
+            // Cast the parameter to a Matrix pointer
+            Matrix *Q = (Matrix *)params[0].implementation();
+            
+            // Use the internal MatrixWrapper method to compute the Lyapunov equation
+            MatrixWrapper lyapunov = matrix.lyapunov_solver(Q->matrix);
+            
+            // Return a new Php::Object of type "Matrix" initialized with the Lyapunov result
+            return Php::Object("Matrix", new Matrix(lyapunov));
+        } else {
+            // Throw an exception if the parameter is not a Matrix object
+            throw Php::Exception("Parameter must be an instance of Matrix");
+        }
+    } else {
+        // Throw an exception if the number of parameters is not exactly one
+        throw Php::Exception("Invalid number of parameters: expected exactly one Matrix parameter");
+    }
+}
+
 // Helper functions
 
 int calculateThreadsBasedOnMatrixSize__(int rows, int cols, double scalingFactor, int maxThreads) {

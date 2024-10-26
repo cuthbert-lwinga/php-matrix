@@ -83,7 +83,12 @@ public:
     static Php::Value glorot_uniform(Php::Parameters &params);
     static Php::Value oneHotEncoded(Php::Parameters &params);
     Php::Value slice(Php::Parameters &params);
-
+    Php::Value circulant(Php::Parameters &params);
+    Php::Value isCirculant() const;
+    Php::Value luDecomposition() const;
+    Php::Value svdDecomposition() const;
+    Php::Value decompose(Php::Parameters &params) const;
+    Php::Value lyapunov_solver(Php::Parameters &params) const;
 
 
     Php::Value copy();
